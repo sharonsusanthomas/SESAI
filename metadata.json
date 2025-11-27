@@ -1,0 +1,7 @@
+{
+  "name": "StudentAI - SES",
+  "description": "An AI-driven platform for self-learning, evaluation, and personalized study guidance using Gemini models.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
