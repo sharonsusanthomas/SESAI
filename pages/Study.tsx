@@ -3,6 +3,8 @@ import { AppContext } from '../App';
 import { MessageSquare, Book, ChevronRight, Send, User, Bot, Sparkles } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { askTutor } from '../services/geminiService';
+import { v4 as uuidv4 } from "uuid";
+
 
 const Study: React.FC = () => {
   const { materials, activeMaterialId, setActiveMaterialId } = useContext(AppContext);
@@ -37,7 +39,7 @@ const Study: React.FC = () => {
     if (!input.trim()) return;
 
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       role: 'user',
       text: input,
       timestamp: Date.now()
@@ -55,7 +57,7 @@ const Study: React.FC = () => {
     const responseText = await askTutor(history, userMsg.text, context);
 
     const botMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       role: 'model',
       text: responseText,
       timestamp: Date.now()
@@ -78,7 +80,7 @@ const Study: React.FC = () => {
   const handleSelectMaterial = (id: string) => {
       setSelectedMaterialId(id);
       setActiveMaterialId(id); // Update global state too
-      setMessages([{ id: crypto.randomUUID(), role: 'model', text: 'Context updated. Ask away!', timestamp: Date.now() }]);
+      setMessages([{ id: uuidv4(), role: 'model', text: 'Context updated. Ask away!', timestamp: Date.now() }]);
   };
 
   return (

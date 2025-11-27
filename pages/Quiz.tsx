@@ -3,6 +3,8 @@ import { AppContext } from '../App';
 import { generateQuiz } from '../services/geminiService';
 import { Question, QuizLevel, QuizResult } from '../types';
 import { GraduationCap, CheckCircle, XCircle, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { v4 as uuidv4 } from "uuid";
+
 
 const Quiz: React.FC = () => {
   const { materials, addQuizResult } = useContext(AppContext);
@@ -50,7 +52,7 @@ const Quiz: React.FC = () => {
     }, 0);
 
     const result: QuizResult = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       materialId: selectedMaterialId,
       date: new Date().toISOString(),
       score,

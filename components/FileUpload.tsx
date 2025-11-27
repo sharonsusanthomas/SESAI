@@ -71,15 +71,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       }
 
       // Create initial material object
-      const newMaterial: LearningMaterial = {
-        id: crypto.randomUUID(),
-        title: file.name,
-        type: type as any,
-        content: content,
-        processedDate: new Date().toISOString(),
-        tags: ['New'],
-        summary: '' // To be filled by AI
-      };
+const newMaterial: LearningMaterial = {
+         id: window.crypto?.randomUUID?.() || Math.random().toString(36).substring(2),
+         title: file.name,
+         type: type as any,
+         content,
+         processedDate: new Date().toISOString(),
+         tags: ['New'],
+         summary: ''
+};
+
 
       // Generate Summary Immediately
       try {
