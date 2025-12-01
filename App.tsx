@@ -3,23 +3,22 @@ import { AppState, LearningMaterial, QuizResult, SmartNotes, AssessmentQuestion 
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Study from './pages/Study';
-import Quiz from './pages/Quiz';
 import Analytics from './pages/Analytics';
 import SmartNotesPage from './pages/SmartNotes';
-import CustomEval from './pages/CustomEval';
+import Evaluation from './pages/Evaluation';
 
 // Create Context
 export const AppContext = createContext<AppState>({
   materials: [],
   quizHistory: [],
   activeMaterialId: null,
-  addMaterial: () => {},
-  removeMaterial: () => {},
-  updateMaterialSummary: () => {},
-  updateMaterialNotes: () => {},
-  updateMaterialAssessments: () => {},
-  addQuizResult: () => {},
-  setActiveMaterialId: () => {}
+  addMaterial: () => { },
+  removeMaterial: () => { },
+  updateMaterialSummary: () => { },
+  updateMaterialNotes: () => { },
+  updateMaterialAssessments: () => { },
+  addQuizResult: () => { },
+  setActiveMaterialId: () => { }
 });
 
 const App: React.FC = () => {
@@ -71,26 +70,25 @@ const App: React.FC = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard onNavigate={setActiveTab} />;
       case 'study': return <Study />;
-      case 'quiz': return <Quiz />;
+      case 'evaluation': return <Evaluation />;
       case 'analytics': return <Analytics />;
       case 'smart-notes': return <SmartNotesPage />;
-      case 'custom-eval': return <CustomEval />;
       default: return <Dashboard onNavigate={setActiveTab} />;
     }
   };
 
   return (
-    <AppContext.Provider value={{ 
-      materials, 
-      quizHistory, 
-      activeMaterialId, 
-      addMaterial, 
-      removeMaterial, 
-      updateMaterialSummary, 
-      updateMaterialNotes, 
+    <AppContext.Provider value={{
+      materials,
+      quizHistory,
+      activeMaterialId,
+      addMaterial,
+      removeMaterial,
+      updateMaterialSummary,
+      updateMaterialNotes,
       updateMaterialAssessments,
       addQuizResult,
-      setActiveMaterialId 
+      setActiveMaterialId
     }}>
       <Layout activeTab={activeTab} onTabChange={setActiveTab}>
         {renderContent()}

@@ -27,7 +27,7 @@ export const generateSummary = async (content: string, type: 'text' | 'image' | 
     let response;
 
     if (imageData) {
-       response = await ai.models.generateContent({
+      response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: {
           parts: [
@@ -35,7 +35,7 @@ export const generateSummary = async (content: string, type: 'text' | 'image' | 
             { text: "Summarize this learning material clearly and concisely (approx 100 words)." }
           ]
         }
-       });
+      });
     } else {
       const safeContent = truncateContent(content, 50000);
       response = await ai.models.generateContent({
@@ -55,7 +55,7 @@ export const processDocument = async (content: string): Promise<AIResponseData> 
   try {
     const imageData = parseImageData(content);
     const safeContent = imageData ? "" : truncateContent(content);
-    
+
     const parts: any[] = [];
     if (imageData) {
       parts.push({ inlineData: imageData });
@@ -152,11 +152,11 @@ export const generateSmartNotes = async (content: string): Promise<SmartNotes> =
   return data.notes;
 };
 
-export const askTutor = async (history: {role: 'user' | 'model', text: string}[], newQuestion: string, contextContent?: string): Promise<string> => {
+export const askTutor = async (history: { role: 'user' | 'model', text: string }[], newQuestion: string, contextContent?: string): Promise<string> => {
   try {
     const imageData = contextContent ? parseImageData(contextContent) : null;
     let safeContext = "No specific material selected.";
-    
+
     if (contextContent && !imageData) {
       safeContext = truncateContent(contextContent, 100000);
     } else if (imageData) {
@@ -178,7 +178,7 @@ export const askTutor = async (history: {role: 'user' | 'model', text: string}[]
 
     const parts: any[] = [];
     if (imageData) {
-       parts.push({ inlineData: imageData });
+      parts.push({ inlineData: imageData });
     }
     parts.push({ text: `Context: ${safeContext}\n\nQuestion: ${newQuestion}` });
 
@@ -192,9 +192,9 @@ export const askTutor = async (history: {role: 'user' | 'model', text: string}[]
 };
 
 export const generateAdvancedQuestions = async (
-  content: string, 
-  level: QuizLevel, 
-  type: QuestionType, 
+  content: string,
+  level: QuizLevel,
+  type: QuestionType,
   count: number
 ): Promise<Question[]> => {
   try {
@@ -209,7 +209,7 @@ export const generateAdvancedQuestions = async (
       model: 'gemini-2.5-flash',
       contents: { parts },
       config: {
-        systemInstruction: "You are a professor creating exam questions. Output strictly valid JSON.",
+        systemInstruction: "You are a professor creating exam questions. For 'modelAnswer', provide a detailed, step-by-step solution or comprehensive explanation (approx 100-150 words) that fully answers the question. Output strictly valid JSON.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -249,11 +249,11 @@ export const generateQuiz = async (content: string, level: QuizLevel): Promise<Q
   return generateAdvancedQuestions(content, level, 'multiple-choice', 5);
 };
 
-export const askStrictTutor = async (history: {role: 'user' | 'model', text: string}[], newQuestion: string, contextContent?: string): Promise<string> => {
+export const askStrictTutor = async (history: { role: 'user' | 'model', text: string }[], newQuestion: string, contextContent?: string): Promise<string> => {
   try {
     const imageData = contextContent ? parseImageData(contextContent) : null;
     let safeContext = "No context provided.";
-    
+
     if (contextContent && !imageData) {
       safeContext = truncateContent(contextContent, 100000);
     } else if (imageData) {
@@ -285,5 +285,50 @@ export const askStrictTutor = async (history: {role: 'user' | 'model', text: str
   } catch (error) {
     console.error("Strict Chat Error:", error);
     return "Error processing strict context request.";
+  }
+};
+
+export const evaluateAnswer = async (
+  question: string,
+  userAnswer: string,
+  modelAnswer: string,
+  maxMarks: number
+): Promise<{ score: number; feedback: string }> => {
+  try {
+    const prompt = `
+        You are a strict academic grader. Evaluate the student's answer against the model answer.
+        
+        Question: ${question}
+        Model Answer: ${modelAnswer}
+        Student Answer: ${userAnswer}
+        Max Marks: ${maxMarks}
+
+        Task:
+        1. Assign a score out of ${maxMarks} based on accuracy, completeness, and relevance.Do not be strict Can accept similar answers.
+        2. Provide a detailed explanation that includes:
+           - The Correct Answer (based on the model answer).
+           - A Comparison between the student's answer and the correct answer, highlighting missing points or inaccuracies.
+           - Constructive feedback.
+
+        Output strictly valid JSON:
+        {
+            "score": number,
+            "feedback": "string"
+        }
+        `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: { parts: [{ text: prompt }] },
+      config: { responseMimeType: "application/json" }
+    });
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error("No evaluation returned");
+    return JSON.parse(jsonText);
+
+  } catch (error) {
+    console.error("Evaluation Error:", error);
+    return { score: 0, feedback: "Failed to evaluate answer." };
   }
 };

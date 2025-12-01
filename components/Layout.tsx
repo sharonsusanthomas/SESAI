@@ -14,8 +14,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
     { id: 'dashboard', label: 'Inputs & Library', icon: <Upload size={20} /> },
     { id: 'smart-notes', label: 'Smart Notes', icon: <FileText size={20} /> },
     { id: 'study', label: 'AI Tutor', icon: <BookOpen size={20} /> },
-    { id: 'quiz', label: 'Self-Evaluation', icon: <GraduationCap size={20} /> },
-    { id: 'custom-eval', label: 'Custom Eval', icon: <BrainCircuit size={20} /> },
+    { id: 'evaluation', label: 'Evaluation', icon: <GraduationCap size={20} /> },
     { id: 'analytics', label: 'Analytics', icon: <PieChart size={20} /> },
   ];
 
@@ -52,8 +51,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
                 setIsMobileMenuOpen(false);
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors
-                ${activeTab === item.id 
-                  ? 'bg-blue-50 text-blue-700 border border-blue-100' 
+                ${activeTab === item.id
+                  ? 'bg-blue-50 text-blue-700 border border-blue-100'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
             >
