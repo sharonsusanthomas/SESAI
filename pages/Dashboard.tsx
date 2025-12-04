@@ -2,22 +2,24 @@ import React, { useContext } from 'react';
 import FileUpload from '../components/FileUpload';
 import { AppContext } from '../App';
 import { FileText, Image, Clock, ArrowRight, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
-  onNavigate: (tab: string) => void;
+  // No props needed for navigation anymore
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = () => {
   const { materials, addMaterial, removeMaterial, setActiveMaterialId } = useContext(AppContext);
+  const navigate = useNavigate();
 
   const handleStartStudying = (id: string) => {
     setActiveMaterialId(id);
-    onNavigate('study');
+    navigate('/study');
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if(confirm("Are you sure you want to remove this material?")) {
+    if (confirm("Are you sure you want to remove this material?")) {
       removeMaterial(id);
     }
   };
@@ -47,8 +49,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {materials.map((item) => (
               <div key={item.id} className="bg-white border rounded-lg p-5 hover:shadow-md transition-shadow flex flex-col h-full relative group">
-                
-                <button 
+
+                <button
                   onClick={(e) => handleDelete(e, item.id)}
                   className="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition-colors p-1"
                   title="Remove Material"
@@ -61,18 +63,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     {item.type === 'image' ? <Image size={20} /> : <FileText size={20} />}
                   </div>
                 </div>
-                
+
                 <h4 className="font-semibold text-gray-900 mb-2 truncate" title={item.title}>{item.title}</h4>
                 <div className="flex items-center gap-1 text-xs text-gray-400 mb-2">
-                    <Clock size={12} />
-                    {new Date(item.processedDate).toLocaleDateString()}
+                  <Clock size={12} />
+                  {new Date(item.processedDate).toLocaleDateString()}
                 </div>
 
                 <p className="text-sm text-gray-500 line-clamp-3 mb-4 flex-1">
                   {item.summary ? item.summary : "No summary available yet."}
                 </p>
 
-                <button 
+                <button
                   onClick={() => handleStartStudying(item.id)}
                   className="w-full mt-auto text-sm text-blue-600 font-medium hover:bg-blue-50 py-2 rounded transition-colors flex items-center justify-center gap-1"
                 >
