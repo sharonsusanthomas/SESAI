@@ -60,6 +60,19 @@ class GoogleDriveService:
         
         return folder['id']
     
+    def validate_folder(self, folder_id: str) -> bool:
+        """
+        Check if a folder exists and is accessible
+        """
+        try:
+            file = self.service.files().get(
+                fileId=folder_id,
+                fields='id, trashed'
+            ).execute()
+            return not file.get('trashed', False)
+        except Exception:
+            return False
+
     def upload_file(
         self, 
         file_path: str, 
@@ -84,7 +97,8 @@ class GoogleDriveService:
             'parents': [parent_id]
         }
         
-        media = MediaFileUpload(file_path, mimetype=mime_type, resumable=True)
+        # Use simple upload instead of resumable for better reliability with small files
+        media = MediaFileUpload(file_path, mimetype=mime_type, resumable=False)
         
         file = self.service.files().create(
             body=file_metadata,

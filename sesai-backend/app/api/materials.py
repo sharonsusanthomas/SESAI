@@ -23,17 +23,11 @@ async def upload_material(
 ):
     """
     Upload a learning material file
-    
-    Args:
-        file: Uploaded file
-        current_user: Current authenticated user
-        db: Database session
-        
-    Returns:
-        Created material data
+    Uploads to Drive synchronously, then saves to DB
     """
     # Save file temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+    suffix = os.path.splitext(file.filename)[1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
         content = await file.read()
         temp_file.write(content)
         temp_path = temp_file.name
@@ -49,16 +43,15 @@ async def upload_material(
             with open(temp_path, 'r', encoding='utf-8') as f:
                 text_content = f.read()
         else:
-            text_content = ""  # For images, we'll process differently
-        
-        # Upload to Google Drive
+            text_content = ""
+            
+        # Upload to Google Drive (Synchronous)
         if not current_user.google_access_token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Google Drive access token missing. Please log in again."
             )
             
-        # Create credentials object from stored tokens
         creds = Credentials(
             token=current_user.google_access_token,
             refresh_token=current_user.google_refresh_token,
@@ -70,34 +63,35 @@ async def upload_material(
         
         drive_service = GoogleDriveService(creds)
         
-        # Ensure upload folder exists
-        if not current_user.drive_folder_id:
-            # Try to recreate structure if missing
+        # Ensure upload folder exists and is valid
+        folder_valid = False
+        if current_user.drive_folder_id:
+            folder_valid = drive_service.validate_folder(current_user.drive_folder_id)
+            
+        if not folder_valid:
+            print("⚠️ Main SESAI folder missing or invalid. Recreating structure...")
             folders = drive_service.setup_sesai_folder_structure()
             current_user.drive_folder_id = folders['sesai']
             db.commit()
             
-        # Get uploads folder ID (we need to find it or just use the main folder)
-        # For simplicity, we'll list children of main folder to find 'uploads'
-        # In a real app, we might store all folder IDs in the user model or a separate table
-        # For now, let's just upload to the main SESAI folder if we can't find 'uploads' easily
-        # Or better, let's just use get_or_create_folder again which is idempotent
         uploads_folder_id = drive_service.get_or_create_folder("uploads", current_user.drive_folder_id)
         
         # Upload file
+        print(f"📤 Uploading {file.filename} to Drive...")
         drive_file = drive_service.upload_file(
             file_path=temp_path,
             filename=file.filename,
             parent_id=uploads_folder_id,
             mime_type=file.content_type
         )
-        
+        print(f"✅ Upload complete. File ID: {drive_file['id']}")
+
         # Generate summary with OpenAI
         if text_content:
             summary = await openai_service.generate_summary(text_content, file_type)
         else:
             summary = "File uploaded successfully"
-        
+            
         # Create material record
         material = Material(
             user_id=current_user.id,
@@ -113,7 +107,10 @@ async def upload_material(
         db.refresh(material)
         
         return MaterialResponse.from_orm(material)
-    
+        
+    except Exception as e:
+        print(f"❌ Upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
     finally:
         # Clean up temp file
         if os.path.exists(temp_path):
@@ -126,7 +123,7 @@ async def list_materials(
     db: Session = Depends(get_db)
 ):
     """
-    List all materials for current user, syncing with Google Drive
+    List all materials for current user
     
     Args:
         current_user: Current authenticated user
@@ -135,66 +132,6 @@ async def list_materials(
     Returns:
         List of materials
     """
-    # Sync with Google Drive if tokens are available
-    if current_user.google_access_token:
-        try:
-            # Create credentials object
-            creds = Credentials(
-                token=current_user.google_access_token,
-                refresh_token=current_user.google_refresh_token,
-                token_uri="https://oauth2.googleapis.com/token",
-                client_id=os.getenv("GOOGLE_CLIENT_ID"),
-                client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-                scopes=['https://www.googleapis.com/auth/drive.file']
-            )
-            
-            drive_service = GoogleDriveService(creds)
-            
-            # Ensure folder structure exists
-            if not current_user.drive_folder_id:
-                folders = drive_service.setup_sesai_folder_structure()
-                current_user.drive_folder_id = folders['sesai']
-                db.commit()
-                uploads_folder_id = folders['uploads']
-            else:
-                uploads_folder_id = drive_service.get_or_create_folder("uploads", current_user.drive_folder_id)
-            
-            # List files from Drive
-            drive_files = drive_service.list_files(uploads_folder_id)
-            print(f"📂 Found {len(drive_files)} files in Drive folder {uploads_folder_id}")
-            for f in drive_files:
-                print(f"   - {f.get('name')} ({f.get('id')})")
-            
-            # Get existing drive file IDs from DB
-            existing_materials = db.query(Material).filter(
-                Material.user_id == current_user.id
-            ).all()
-            existing_drive_ids = {m.drive_file_id for m in existing_materials}
-            
-            # Add missing files
-            new_materials = []
-            for file in drive_files:
-                if file['id'] not in existing_drive_ids:
-                    file_type = get_file_type(file['name'])
-                    
-                    new_material = Material(
-                        user_id=current_user.id,
-                        drive_file_id=file['id'],
-                        filename=file['name'],
-                        file_type=file_type,
-                        summary="Synced from Google Drive",
-                        drive_link=file.get('webViewLink')
-                    )
-                    new_materials.append(new_material)
-            
-            if new_materials:
-                db.add_all(new_materials)
-                db.commit()
-                
-        except Exception as e:
-            print(f"Drive sync failed: {str(e)}")
-            # Continue to return local materials even if sync fails
-
     materials = db.query(Material).filter(
         Material.user_id == current_user.id
     ).order_by(Material.created_at.desc()).all()

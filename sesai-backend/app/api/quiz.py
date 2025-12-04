@@ -108,7 +108,7 @@ async def submit_quiz(
     db.commit()
     db.refresh(quiz_result)
     
-    # Save to Google Drive
+    # Save to Google Drive (Synchronous)
     if current_user.google_access_token:
         try:
             from google.oauth2.credentials import Credentials
@@ -127,6 +127,17 @@ async def submit_quiz(
             )
             
             drive_service = GoogleDriveService(creds)
+            
+            # Ensure folder structure exists and is valid
+            folder_valid = False
+            if current_user.drive_folder_id:
+                folder_valid = drive_service.validate_folder(current_user.drive_folder_id)
+                
+            if not folder_valid:
+                print("⚠️ Main SESAI folder missing or invalid. Recreating structure...")
+                folders = drive_service.setup_sesai_folder_structure()
+                current_user.drive_folder_id = folders['sesai']
+                db.commit()
             
             # Get folder IDs
             folders = {
@@ -155,7 +166,7 @@ async def submit_quiz(
             
         except Exception as e:
             print(f"⚠️ Failed to save quiz to Drive: {str(e)}")
-            # Continue even if Drive save fails
+            # We don't fail the request here because DB save succeeded
     
     return QuizResultResponse.from_orm(quiz_result)
 

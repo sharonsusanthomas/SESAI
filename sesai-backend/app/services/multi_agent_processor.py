@@ -10,7 +10,7 @@ class MultiAgentProcessor:
     Each agent processes a chunk of the document independently
     """
     
-    def __init__(self, pages_per_chunk: int = 50):
+    def __init__(self, pages_per_chunk: int = 15):
         """
         Initialize the multi-agent processor
         

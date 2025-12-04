@@ -58,6 +58,17 @@ async def chat_tutor(
                 )
                 drive_service = GoogleDriveService(creds)
                 
+                # Ensure folder structure exists and is valid
+                folder_valid = False
+                if current_user.drive_folder_id:
+                    folder_valid = drive_service.validate_folder(current_user.drive_folder_id)
+                    
+                if not folder_valid:
+                    print("⚠️ Main SESAI folder missing or invalid. Recreating structure...")
+                    folders = drive_service.setup_sesai_folder_structure()
+                    current_user.drive_folder_id = folders['sesai']
+                    db.commit()
+                
                 # Download file
                 file_content = drive_service.download_file(material.drive_file_id)
                 

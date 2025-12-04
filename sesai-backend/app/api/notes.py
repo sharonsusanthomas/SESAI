@@ -71,11 +71,24 @@ async def generate_smart_notes(
     
     drive_service = GoogleDriveService(creds)
     
-    # Ensure folder structure exists
-    if not current_user.drive_folder_id:
+    # Ensure folder structure exists and is valid
+    folder_valid = False
+    if current_user.drive_folder_id:
+        folder_valid = drive_service.validate_folder(current_user.drive_folder_id)
+        
+    if not folder_valid:
+        print("⚠️ Main SESAI folder missing or invalid. Recreating structure...")
         folders = drive_service.setup_sesai_folder_structure()
         current_user.drive_folder_id = folders['sesai']
         db.commit()
+        
+        # Update folders dict with new IDs
+        folders = {
+            'sesai': folders['sesai'],
+            'smart_notes': folders['smart_notes'],
+            'quizzes': folders['quizzes'],
+            'metadata': folders['metadata'],
+        }
     else:
         # Get folder IDs
         folders = {
@@ -216,3 +229,57 @@ async def get_smart_notes(
         )
     
     return SmartNotesResponse.from_orm(notes)
+
+
+@router.get("/{material_id}/download")
+async def download_notes(
+    material_id: str,
+    format: str = "docx",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Download smart notes in specified format (docx)
+    """
+    # Verify material ownership
+    material = db.query(Material).filter(
+        Material.id == material_id,
+        Material.user_id == current_user.id
+    ).first()
+    
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found"
+        )
+    
+    # Get notes
+    notes = db.query(SmartNotes).filter(
+        SmartNotes.material_id == material_id
+    ).first()
+    
+    if not notes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Smart notes not found"
+        )
+        
+    if format == "docx":
+        from app.utils.formatters import create_docx_from_notes
+        from fastapi.responses import StreamingResponse
+        
+        # Generate DOCX
+        file_stream = create_docx_from_notes(notes.notes_data, material.filename)
+        
+        filename = f"{os.path.splitext(material.filename)[0]}_notes.docx"
+        
+        return StreamingResponse(
+            file_stream,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported format. Use 'docx'."
+        )

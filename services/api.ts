@@ -188,6 +188,35 @@ export const quizAPI = {
   },
 };
 
+// ==================== TUTOR API ====================
+
+export const tutorAPI = {
+  /**
+   * Chat with AI Tutor
+   */
+  chat: async (params: {
+    messages: { role: string; text: string }[];
+    material_id?: string;
+    context?: string;
+  }) => {
+    const response = await api.post('/api/tutor/chat', params);
+    return response.data;
+  },
+
+  /**
+   * Evaluate answer
+   */
+  evaluate: async (params: {
+    question: string;
+    user_answer: string;
+    model_answer: string;
+    max_marks: number;
+  }) => {
+    const response = await api.post('/api/tutor/evaluate', params);
+    return response.data;
+  },
+};
+
 // ==================== ANALYTICS API ====================
 
 export const analyticsAPI = {

@@ -1,22 +1,21 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, PieChart, Upload, GraduationCap, Settings, Menu, X, FileText, BrainCircuit, LogOut } from 'lucide-react';
+import { BookOpen, PieChart, Upload, GraduationCap, Settings, Menu, X, FileText, BrainCircuit } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
-  onLogout: () => void;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, onLogout }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const navigate = useNavigate();
 
   const navItems = [
-    { id: '/', label: 'Inputs & Library', icon: <Upload size={20} /> },
-    { id: '/smart-notes', label: 'Smart Notes', icon: <FileText size={20} /> },
-    { id: '/study', label: 'AI Tutor', icon: <BookOpen size={20} /> },
-    { id: '/evaluation', label: 'Evaluation', icon: <GraduationCap size={20} /> },
-    { id: '/analytics', label: 'Analytics', icon: <PieChart size={20} /> },
+    { id: 'dashboard', label: 'Inputs & Library', icon: <Upload size={20} /> },
+    { id: 'smart-notes', label: 'Smart Notes', icon: <FileText size={20} /> },
+    { id: 'study', label: 'AI Tutor', icon: <BookOpen size={20} /> },
+    { id: 'evaluation', label: 'Evaluation', icon: <GraduationCap size={20} /> },
+    { id: 'analytics', label: 'Analytics', icon: <PieChart size={20} /> },
   ];
 
   return (
@@ -45,30 +44,25 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout }) => {
 
         <nav className="flex-1 mt-2 px-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
-            <NavLink
+            <button
               key={item.id}
-              to={item.id}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={({ isActive }) => `w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors
-                ${isActive
+              onClick={() => {
+                onTabChange(item.id);
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors
+                ${activeTab === item.id
                   ? 'bg-blue-50 text-blue-700 border border-blue-100'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
             >
               {item.icon}
               {item.label}
-            </NavLink>
+            </button>
           ))}
         </nav>
 
         <div className="p-4 border-t bg-gray-50">
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-3 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors mb-2"
-          >
-            <LogOut size={18} />
-            Sign Out
-          </button>
           <div className="flex items-center gap-3 px-4 py-2 text-xs text-gray-500">
             <Settings size={14} />
             <span>v1.2.0 (OpenAI)</span>
