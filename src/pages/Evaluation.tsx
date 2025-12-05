@@ -30,6 +30,7 @@ const Evaluation: React.FC = () => {
     // AI Grading State
     const [evaluations, setEvaluations] = useState<Record<number, { score: number; feedback: string }>>({});
     const [isGrading, setIsGrading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const startEvaluation = async () => {
         if (!selectedMaterialId) return alert("Select a material first");
@@ -111,43 +112,53 @@ const Evaluation: React.FC = () => {
     };
 
     const submitEvaluation = async () => {
-        let score = 0;
+        // Prevent duplicate submissions
+        if (isSubmitting) return;
 
-        if (mode === 'standard') {
-            score = questions.reduce((acc, q, idx) => {
-                return acc + (userAnswers[idx] === q.correctAnswerIndex ? 1 : 0);
-            }, 0);
-        } else {
-            // Sum up AI scores
-            score = (Object.values(evaluations) as { score: number; feedback: string }[]).reduce((acc, curr) => acc + curr.score, 0);
-        }
-
-        const result: QuizResult = {
-            id: uuidv4(),
-            materialId: selectedMaterialId,
-            date: new Date().toISOString(),
-            score, // This is raw score. For self-eval, it's sum of marks.
-            totalQuestions: questions.length, // Note: This might need adjustment for percentage calc if marks vary
-            level: difficulty,
-            type: mode === 'standard' ? 'multiple-choice' : questionType,
-            questions,
-            userAnswers
-        };
+        setIsSubmitting(true);
 
         try {
-            await quizAPI.submit({
-                material_id: selectedMaterialId,
-                difficulty: difficulty,
-                quiz_type: mode === 'standard' ? 'multiple-choice' : questionType,
-                questions: questions,
-                user_answers: userAnswers
-            });
-        } catch (e) {
-            console.error("Failed to save quiz result", e);
-        }
+            let score = 0;
 
-        addQuizResult(result);
-        setStep('result');
+            if (mode === 'standard') {
+                score = questions.reduce((acc, q, idx) => {
+                    return acc + (userAnswers[idx] === q.correctAnswerIndex ? 1 : 0);
+                }, 0);
+            } else {
+                // Sum up AI scores
+                score = (Object.values(evaluations) as { score: number; feedback: string }[]).reduce((acc, curr) => acc + curr.score, 0);
+            }
+
+            const result: QuizResult = {
+                id: uuidv4(),
+                materialId: selectedMaterialId,
+                date: new Date().toISOString(),
+                score, // This is raw score. For self-eval, it's sum of marks.
+                totalQuestions: questions.length, // Note: This might need adjustment for percentage calc if marks vary
+                level: difficulty,
+                type: mode === 'standard' ? 'multiple-choice' : questionType,
+                questions,
+                userAnswers
+            };
+
+            try {
+                await quizAPI.submit({
+                    material_id: selectedMaterialId,
+                    difficulty: difficulty,
+                    quiz_type: mode === 'standard' ? 'multiple-choice' : questionType,
+                    questions: questions,
+                    user_answers: userAnswers
+                });
+            } catch (e) {
+                console.error("Failed to save quiz result", e);
+                alert("Failed to save results to server. Results saved locally.");
+            }
+
+            addQuizResult(result);
+            setStep('result');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     // Helper to calculate total possible marks
@@ -393,9 +404,11 @@ const Evaluation: React.FC = () => {
                     {isLast ? (
                         <button
                             onClick={submitEvaluation}
-                            className="bg-green-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-700 shadow-md shadow-green-200"
+                            disabled={isSubmitting}
+                            className="bg-green-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-green-200 flex items-center gap-2"
                         >
-                            Finish Evaluation
+                            {isSubmitting && <Loader2 className="animate-spin" size={18} />}
+                            {isSubmitting ? 'Submitting...' : 'Finish Evaluation'}
                         </button>
                     ) : (
                         <button
