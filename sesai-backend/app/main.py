@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import init_db
+from app.database import Base, engine
 from app.api import auth, materials, notes, quiz, analytics, tutor
 import os
 
@@ -9,16 +9,19 @@ import os
 if settings.ENVIRONMENT == "development":
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# Create FastAPI application
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
+# Initialize FastAPI app
 app = FastAPI(
-    title="SESAI API",
-    description="AI-powered student learning assistant backend",
+    title="EduNova AI API",
+    description="AI-powered learning platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# Configure CORS
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS_LIST,
@@ -27,7 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers
+# Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(materials.router, prefix="/api/materials", tags=["Materials"])
 app.include_router(notes.router, prefix="/api/notes", tags=["Smart Notes"])
@@ -38,17 +41,16 @@ app.include_router(tutor.router, prefix="/api/tutor", tags=["AI Tutor"])
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup"""
-    init_db()
-    print("✅ Database initialized")
-    print(f"✅ SESAI API running in {settings.ENVIRONMENT} mode")
+    """Initialize on startup"""
+    print("✅ EduNova AI API starting up")
+    print(f"✅ Running in {settings.ENVIRONMENT} mode")
 
 
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {
-        "message": "SESAI API v1.0",
+        "message": "EduNova AI API v1.0",
         "docs": "/docs",
         "health": "/health"
     }

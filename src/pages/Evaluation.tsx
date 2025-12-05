@@ -55,9 +55,10 @@ const Evaluation: React.FC = () => {
             setEvaluations({});
             setCurrentQuestionIdx(0);
             setStep('taking');
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Failed to generate evaluation. Please try again.");
+            const errorMessage = e.response?.data?.detail || e.message || "Failed to generate evaluation. Please try again.";
+            alert(errorMessage);
             setStep('config');
         }
     };

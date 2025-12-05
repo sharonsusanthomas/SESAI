@@ -47,17 +47,33 @@ async def generate_quiz(
             detail="Material not found"
         )
     
+    # Check if material has content
+    if not material.summary or material.summary.strip() == "" or material.summary == "File uploaded successfully":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This material has no content to generate questions from. Please re-upload the file or upload a different material with text content."
+        )
+    
     try:
         # Generate quiz with OpenAI
-        content = material.summary or "No content available"
+        content = material.summary
+        print(f"📝 Generating quiz for material: {material.filename}")
+        print(f"📄 Content length: {len(content)} characters")
+        
         questions = await openai_service.generate_quiz(
             content=content,
             difficulty=request.difficulty,
             question_type=request.question_type,
             count=request.count
         )
+        
+        print(f"✅ Generated {len(questions)} questions")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Quiz generation error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Quiz generation failed: {str(e)}"

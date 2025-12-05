@@ -45,7 +45,8 @@ export const generateAdvancedQuestions = async (
       question_type: type,
       count: count
     });
-    return response.questions || [];
+    // Backend returns array directly, not wrapped in {questions: [...]}
+    return Array.isArray(response) ? response : [];
   } catch (error) {
     console.error("Advanced Quiz generation error:", error);
     throw new Error("Failed to generate quiz.");
