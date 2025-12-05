@@ -1,14 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { UploadCloud, FileText, Image as ImageIcon, Loader2, Clipboard, Type } from 'lucide-react';
 import { LearningMaterial } from '../types';
-import { generateSummary } from '../services/geminiService';
+import { materialsAPI } from '../services/api';
 
 interface FileUploadProps {
   onUploadComplete: (material: LearningMaterial) => void;
 }
-
-// Declare pdfjsLib generic to avoid TS errors without installing types for the CDN script
-declare const pdfjsLib: any;
 
 const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
@@ -21,80 +18,26 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const extractTextFromPDF = async (arrayBuffer: ArrayBuffer): Promise<string> => {
-    try {
-      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-      let fullText = '';
-
-      const maxPages = pdf.numPages;
-
-      for (let i = 1; i <= maxPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
-        fullText += pageText + '\n';
-      }
-
-      return fullText;
-    } catch (e) {
-      console.error("PDF Parse Error", e);
-      throw new Error("Failed to read PDF text.");
-    }
-  };
-
   const processFile = async (file: File) => {
     setIsProcessing(true);
     try {
-      let content = '';
-      let type: 'text' | 'image' | 'pdf' = 'text';
+      const response = await materialsAPI.upload(file);
 
-      if (file.type.startsWith('image/')) {
-        type = 'image';
-        content = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-      } else if (file.type === 'application/pdf') {
-        type = 'pdf';
-        const arrayBuffer = await file.arrayBuffer();
-        content = await extractTextFromPDF(arrayBuffer);
-        if (content.trim().length === 0) {
-          throw new Error("PDF appears empty or is image-based (OCR not supported in this version).");
-        }
-      } else {
-        try {
-          content = await file.text();
-          type = 'text';
-        } catch (readError) {
-          alert("Could not read file text.");
-          setIsProcessing(false);
-          return;
-        }
-      }
-
+      // Map API response to LearningMaterial
       const newMaterial: LearningMaterial = {
-        id: window.crypto?.randomUUID?.() || Math.random().toString(36).substring(2),
-        title: file.name,
-        type: type as any,
-        content,
-        processedDate: new Date().toISOString(),
+        id: response.id,
+        title: response.filename,
+        type: response.file_type as any,
+        content: "", // Content is fetched on demand by Study/Notes pages
+        processedDate: response.created_at || new Date().toISOString(),
         tags: ['New'],
-        summary: ''
+        summary: response.summary || ''
       };
-
-      try {
-        const summary = await generateSummary(content, type as any);
-        newMaterial.summary = summary;
-      } catch (err) {
-        console.error("Auto-summary failed", err);
-        newMaterial.summary = "Summary generation failed. Check API Key or Try manual regeneration.";
-      }
 
       onUploadComplete(newMaterial);
     } catch (error: any) {
       console.error(error);
-      alert(`Error processing file: ${error.message}`);
+      alert(`Error uploading file: ${error.response?.data?.detail || error.message || "Unknown error"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -108,31 +51,17 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
 
     setIsProcessing(true);
     try {
-      const newMaterial: LearningMaterial = {
-        id: window.crypto?.randomUUID?.() || Math.random().toString(36).substring(2),
-        title: pastedTitle,
-        type: 'text',
-        content: pastedContent,
-        processedDate: new Date().toISOString(),
-        tags: ['Pasted'],
-        summary: ''
-      };
+      // Create a file from pasted content
+      const blob = new Blob([pastedContent], { type: 'text/plain' });
+      const file = new File([blob], `${pastedTitle}.txt`, { type: 'text/plain' });
 
-      try {
-        const summary = await generateSummary(pastedContent, 'text');
-        newMaterial.summary = summary;
-      } catch (err) {
-        console.error("Auto-summary failed", err);
-        newMaterial.summary = "Summary generation failed.";
-      }
+      await processFile(file);
 
-      onUploadComplete(newMaterial);
       setPastedTitle('');
       setPastedContent('');
       setActiveTab('upload'); // Switch back after success
     } catch (error: any) {
       alert(`Error processing text: ${error.message}`);
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -196,7 +125,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
             {isProcessing ? (
               <div className="flex flex-col items-center justify-center py-4">
                 <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
-                <p className="text-sm text-gray-600">Processing file...</p>
+                <p className="text-sm text-gray-600">Uploading & Processing...</p>
               </div>
             ) : (
               <>

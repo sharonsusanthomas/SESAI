@@ -1,21 +1,22 @@
 import React from 'react';
 import { BookOpen, PieChart, Upload, GraduationCap, Settings, Menu, X, FileText, BrainCircuit } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: string;
-  onTabChange: (tab: string) => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => {
+const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const location = useLocation();
+  const currentPath = location.pathname;
 
   const navItems = [
-    { id: 'dashboard', label: 'Inputs & Library', icon: <Upload size={20} /> },
-    { id: 'smart-notes', label: 'Smart Notes', icon: <FileText size={20} /> },
-    { id: 'study', label: 'AI Tutor', icon: <BookOpen size={20} /> },
-    { id: 'evaluation', label: 'Evaluation', icon: <GraduationCap size={20} /> },
-    { id: 'analytics', label: 'Analytics', icon: <PieChart size={20} /> },
+    { id: 'dashboard', label: 'Inputs & Library', icon: <Upload size={20} />, path: '/dashboard' },
+    { id: 'smart-notes', label: 'Smart Notes', icon: <FileText size={20} />, path: '/smart-notes' },
+    { id: 'study', label: 'AI Tutor', icon: <BookOpen size={20} />, path: '/study' },
+    { id: 'evaluation', label: 'Evaluation', icon: <GraduationCap size={20} />, path: '/evaluation' },
+    { id: 'analytics', label: 'Analytics', icon: <PieChart size={20} />, path: '/analytics' },
   ];
 
   return (
@@ -37,35 +38,44 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
         <div className="p-6">
           <h1 className="text-2xl font-bold text-blue-600 flex items-center gap-2">
             <GraduationCap className="text-blue-600" />
-            StudentAI
+            Edunova AI
           </h1>
-          <p className="text-xs text-gray-500 mt-1">Self-Evaluation System</p>
+          <p className="text-xs text-gray-500 mt-1">Where Learning Meets Intelligence</p>
         </div>
 
         <nav className="flex-1 mt-2 px-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
-            <button
+            <Link
               key={item.id}
-              onClick={() => {
-                onTabChange(item.id);
-                setIsMobileMenuOpen(false);
-              }}
+              to={item.path}
+              onClick={() => setIsMobileMenuOpen(false)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors
-                ${activeTab === item.id
+                ${currentPath.startsWith(item.path)
                   ? 'bg-blue-50 text-blue-700 border border-blue-100'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
             >
               {item.icon}
               {item.label}
-            </button>
+            </Link>
           ))}
         </nav>
 
         <div className="p-4 border-t bg-gray-50">
-          <div className="flex items-center gap-3 px-4 py-2 text-xs text-gray-500">
-            <Settings size={14} />
-            <span>v1.2.0 (OpenAI)</span>
+          <div className="flex items-center justify-between px-4 py-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2">
+              <Settings size={14} />
+              <span>v1.2.0 (OpenAI)</span>
+            </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem('access_token');
+                window.location.reload();
+              }}
+              className="text-red-500 hover:text-red-700 font-medium"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </aside>

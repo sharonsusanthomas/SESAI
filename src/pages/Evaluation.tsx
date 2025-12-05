@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../App';
 import { generateQuiz, generateAdvancedQuestions, evaluateAnswer } from '../services/geminiService';
+import { quizAPI } from '../services/api';
 import { Question, QuizLevel, QuizResult, QuestionType } from '../types';
 import { GraduationCap, CheckCircle, XCircle, AlertCircle, Loader2, ArrowRight, BrainCircuit, Eye, Zap } from 'lucide-react';
 import { v4 as uuidv4 } from "uuid";
@@ -42,10 +43,10 @@ const Evaluation: React.FC = () => {
 
             if (mode === 'standard') {
                 // Standard Quiz is always MCQ
-                generatedQuestions = await generateQuiz(material.content || material.summary || "", difficulty);
+                generatedQuestions = await generateQuiz(material.id, difficulty);
             } else {
                 // Self Eval can be any type
-                generatedQuestions = await generateAdvancedQuestions(material.content || material.summary || "", difficulty, questionType, questionCount);
+                generatedQuestions = await generateAdvancedQuestions(material.id, difficulty, questionType, questionCount);
             }
 
             setQuestions(generatedQuestions);
@@ -108,7 +109,7 @@ const Evaluation: React.FC = () => {
         }
     };
 
-    const submitEvaluation = () => {
+    const submitEvaluation = async () => {
         let score = 0;
 
         if (mode === 'standard') {
@@ -117,7 +118,7 @@ const Evaluation: React.FC = () => {
             }, 0);
         } else {
             // Sum up AI scores
-            score = Object.values(evaluations).reduce((acc, curr) => acc + curr.score, 0);
+            score = (Object.values(evaluations) as { score: number; feedback: string }[]).reduce((acc, curr) => acc + curr.score, 0);
         }
 
         const result: QuizResult = {
@@ -131,6 +132,18 @@ const Evaluation: React.FC = () => {
             questions,
             userAnswers
         };
+
+        try {
+            await quizAPI.submit({
+                material_id: selectedMaterialId,
+                difficulty: difficulty,
+                quiz_type: mode === 'standard' ? 'multiple-choice' : questionType,
+                questions: questions,
+                user_answers: userAnswers
+            });
+        } catch (e) {
+            console.error("Failed to save quiz result", e);
+        }
 
         addQuizResult(result);
         setStep('result');
@@ -402,7 +415,7 @@ const Evaluation: React.FC = () => {
         // Calculate total score obtained
         const totalScore = mode === 'standard'
             ? questions.reduce((acc, q, idx) => acc + (userAnswers[idx] === q.correctAnswerIndex ? 1 : 0), 0)
-            : Object.values(evaluations).reduce((acc, curr) => acc + curr.score, 0);
+            : (Object.values(evaluations) as { score: number; feedback: string }[]).reduce((acc, curr) => acc + curr.score, 0);
 
         const percentage = Math.round((totalScore / totalPossible) * 100);
 

@@ -1,24 +1,32 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../App';
 import { generateSmartNotes } from '../services/geminiService';
 import { Loader2, FileText, List, GitGraph, Book, AlignLeft, Layers, Upload } from 'lucide-react';
 
 const SmartNotes: React.FC = () => {
-    const { materials, updateMaterialNotes } = useContext(AppContext);
-    const [selectedMaterialId, setSelectedMaterialId] = useState<string>(materials[0]?.id || '');
+    const { materials, updateMaterialNotes, activeMaterialId } = useContext(AppContext);
+    const [selectedMaterialId, setSelectedMaterialId] = useState<string>(activeMaterialId || materials[0]?.id || '');
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'summary' | 'keyPoints' | 'mindmap' | 'definitions' | 'detailed'>('summary');
 
     const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
+
+    // Update selected ID if activeMaterialId changes (e.g. from Dashboard)
+    useEffect(() => {
+        if (activeMaterialId) {
+            setSelectedMaterialId(activeMaterialId);
+        }
+    }, [activeMaterialId]);
 
     const handleGenerate = async () => {
         if (!selectedMaterial) return;
         setLoading(true);
         try {
             // This now calls OpenAI with the full structured schema
-            const notes = await generateSmartNotes(selectedMaterial.content);
+            const notes = await generateSmartNotes(selectedMaterial.id);
             updateMaterialNotes(selectedMaterial.id, notes);
         } catch (e) {
+            console.error(e);
             alert("Failed to generate smart notes. Ensure your content isn't too large for a single pass.");
         } finally {
             setLoading(false);
@@ -26,6 +34,7 @@ const SmartNotes: React.FC = () => {
     };
 
     const handleDownload = () => {
+        const notes = selectedMaterial?.smartNotes;
         if (!notes || !selectedMaterial) return;
 
         const content = `

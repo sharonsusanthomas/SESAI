@@ -10,7 +10,7 @@ const Study: React.FC = () => {
   const { materials, activeMaterialId, setActiveMaterialId } = useContext(AppContext);
   // Default to active material or first available
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(activeMaterialId || materials[0]?.id || null);
-  
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: '1', role: 'model', text: 'Hello! I am your AI Tutor. Select a material from the left and ask me anything about it.', timestamp: Date.now() }
   ]);
@@ -21,9 +21,9 @@ const Study: React.FC = () => {
   // Sync internal state with global active ID if it changes
   useEffect(() => {
     if (activeMaterialId) {
-        setSelectedMaterialId(activeMaterialId);
+      setSelectedMaterialId(activeMaterialId);
     } else if (materials.length > 0 && !selectedMaterialId) {
-        setSelectedMaterialId(materials[0].id);
+      setSelectedMaterialId(materials[0].id);
     }
   }, [activeMaterialId, materials]);
 
@@ -50,11 +50,8 @@ const Study: React.FC = () => {
     setIsTyping(true);
 
     const history = messages.map(m => ({ role: m.role, text: m.text }));
-    const context = selectedMaterial ? 
-      `Title: ${selectedMaterial.title}\n\nSummary: ${selectedMaterial.summary}\n\nContent: ${selectedMaterial.content}` 
-      : undefined;
-
-    const responseText = await askTutor(history, userMsg.text, context);
+    // Pass selectedMaterialId instead of context string
+    const responseText = await askTutor(history, userMsg.text, selectedMaterialId || undefined);
 
     const botMsg: ChatMessage = {
       id: uuidv4(),
@@ -78,9 +75,9 @@ const Study: React.FC = () => {
   }
 
   const handleSelectMaterial = (id: string) => {
-      setSelectedMaterialId(id);
-      setActiveMaterialId(id); // Update global state too
-      setMessages([{ id: uuidv4(), role: 'model', text: 'Context updated. Ask away!', timestamp: Date.now() }]);
+    setSelectedMaterialId(id);
+    setActiveMaterialId(id); // Update global state too
+    setMessages([{ id: uuidv4(), role: 'model', text: 'Context updated. Ask away!', timestamp: Date.now() }]);
   };
 
   return (
@@ -92,20 +89,20 @@ const Study: React.FC = () => {
             <Book size={18} /> Course Material
           </h3>
         </div>
-        
+
         {/* List */}
         <div className="overflow-x-auto p-2 border-b flex gap-2">
-           {materials.map(m => (
-             <button
-               key={m.id}
-               onClick={() => handleSelectMaterial(m.id)}
-               className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
+          {materials.map(m => (
+            <button
+              key={m.id}
+              onClick={() => handleSelectMaterial(m.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
                  ${selectedMaterialId === m.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
                `}
-             >
-               {m.title.length > 20 ? m.title.substring(0, 20) + '...' : m.title}
-             </button>
-           ))}
+            >
+              {m.title.length > 20 ? m.title.substring(0, 20) + '...' : m.title}
+            </button>
+          ))}
         </div>
 
         {/* Content View */}
@@ -115,10 +112,10 @@ const Study: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-800 mb-4">{selectedMaterial.title}</h2>
               {selectedMaterial.type === 'image' && (
                 <div className="mb-4 rounded-lg overflow-hidden border">
-                   <img src={selectedMaterial.content} alt="Material" className="w-full object-cover" />
+                  <img src={selectedMaterial.content} alt="Material" className="w-full object-cover" />
                 </div>
               )}
-              
+
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
                 <h4 className="text-yellow-800 font-bold text-xs uppercase tracking-wide mb-1">AI Summary</h4>
                 <div className="text-yellow-900 whitespace-pre-wrap">{selectedMaterial.summary}</div>
@@ -155,24 +152,24 @@ const Study: React.FC = () => {
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm
-                ${msg.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-tr-none' 
+                ${msg.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-tr-none'
                   : 'bg-white border text-gray-800 rounded-tl-none'}`}>
-                 {msg.text.split('\n').map((line, i) => <p key={i} className="mb-1 last:mb-0">{line}</p>)}
+                {msg.text.split('\n').map((line, i) => <p key={i} className="mb-1 last:mb-0">{line}</p>)}
               </div>
             </div>
           ))}
           {isTyping && (
-             <div className="flex gap-3">
-               <div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center">
-                 <Bot size={16} />
-               </div>
-               <div className="bg-white border px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1">
-                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
-                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-75"></span>
-                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></span>
-               </div>
-             </div>
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center">
+                <Bot size={16} />
+              </div>
+              <div className="bg-white border px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1">
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-75"></span>
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></span>
+              </div>
+            </div>
           )}
         </div>
 
@@ -186,7 +183,7 @@ const Study: React.FC = () => {
               placeholder="Ask a question about your notes..."
               className="flex-1 bg-gray-100 border-0 rounded-full px-5 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
-            <button 
+            <button
               onClick={handleSend}
               disabled={isTyping || !input.trim()}
               className="absolute right-2 top-1.5 p-1.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors"
@@ -196,13 +193,13 @@ const Study: React.FC = () => {
           </div>
           <div className="flex gap-2 mt-2 px-2">
             {["Explain like I'm 5", "Create a summary", "Give examples"].map(suggestion => (
-               <button 
-                 key={suggestion}
-                 onClick={() => setInput(suggestion)}
-                 className="text-xs text-gray-500 bg-gray-50 border px-2 py-1 rounded-md hover:bg-gray-100"
-               >
-                 {suggestion}
-               </button>
+              <button
+                key={suggestion}
+                onClick={() => setInput(suggestion)}
+                className="text-xs text-gray-500 bg-gray-50 border px-2 py-1 rounded-md hover:bg-gray-100"
+              >
+                {suggestion}
+              </button>
             ))}
           </div>
         </div>
