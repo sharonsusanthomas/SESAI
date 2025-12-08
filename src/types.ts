@@ -27,7 +27,7 @@ export interface LearningMaterial {
   type: 'text' | 'image' | 'pdf' | 'audio';
   content: string; // Text content or base64 data
   summary?: string;
-  smartNotes?: SmartNotes; 
+  smartNotes?: SmartNotes;
   assessments?: AssessmentQuestion[];
   processedDate: string;
   tags: string[];
@@ -81,4 +81,22 @@ export interface AppState {
   updateMaterialAssessments: (id: string, assessments: AssessmentQuestion[]) => void;
   addQuizResult: (result: QuizResult) => void;
   setActiveMaterialId: (id: string | null) => void;
+}
+
+export interface Reference {
+  source: string;
+  relevance: string;
+}
+
+export interface SmartChatMessage extends ChatMessage {
+  references?: Reference[];
+  usedExternal?: boolean;
+}
+
+export interface SmartChatResponse {
+  response: string;
+  needs_permission: boolean;
+  used_external: boolean;
+  references?: Reference[];
+  subject?: string;
 }

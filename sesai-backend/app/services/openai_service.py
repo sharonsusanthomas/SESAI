@@ -7,9 +7,13 @@ from typing import List, Dict, Any
 class OpenAIService:
     """Service for all OpenAI API interactions"""
     
+    
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = settings.OPENAI_MODEL
+        
+        if not settings.OPENAI_API_KEY:
+            print("⚠️ WARNING: OPENAI_API_KEY is not set. OpenAI features will fail.")
     
     async def generate_summary(self, content: str, content_type: str = "text") -> str:
         """
@@ -227,26 +231,32 @@ Evaluate and provide score with feedback."""
         Returns:
             AI response string
         """
-        system_message = {
-            "role": "system",
-            "content": f"""You are a helpful AI tutor. Answer questions clearly and concisely.
+        try:
+            system_message = {
+                "role": "system",
+                "content": f"""You are a helpful AI tutor. Answer questions clearly and concisely.
+                
+                {f'Context from study material: {context[:50000]}' if context else 'No specific material context.'}
+                
+                If the question is about the study material, base your answer on the context.
+                If the question cannot be answered from the specific context provided but is related to the general topic, answer it using your general knowledge.
+                If not in the context and completely unrelated, you can use general knowledge but mention that."""
+            }
             
-            {f'Context from study material: {context[:50000]}' if context else 'No specific material context.'}
+            full_messages = [system_message] + messages
             
-            If the question is about the study material, base your answer on the context.
-            If not in the context, you can use general knowledge but mention that."""
-        }
-        
-        full_messages = [system_message] + messages
-        
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=full_messages,
-            temperature=0.7,
-            max_tokens=1000
-        )
-        
-        return response.choices[0].message.content
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=full_messages,
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Error in chat tutor: {str(e)}")
+            # Return detailed error for debugging
+            return f"I apologize, but I encountered an error: {str(e)}. Please check your configuration."
     
     async def strict_context_chat(
         self,
@@ -286,6 +296,218 @@ Evaluate and provide score with feedback."""
         )
         
         return response.choices[0].message.content
+    
+    async def check_answer_in_context(
+        self,
+        question: str,
+        context: str
+    ) -> Dict[str, Any]:
+        """
+        Check if a question can be answered from the provided context
+        
+        Args:
+            question: User's question
+            context: Material content
+            
+        Returns:
+            Dictionary with can_answer (bool), confidence (float), and subject (str)
+        """
+        try:
+            system_prompt = """You are an expert at analyzing whether a question can be answered from given context.
+Analyze the question and context, then respond with a JSON object containing:
+- can_answer: true if the context contains sufficient information to answer the question, false otherwise
+- confidence: a number between 0.0 and 1.0 indicating your confidence
+- subject: the main subject/topic of the context (e.g., "Biology", "Python Programming", "World War II")
+
+Be strict: only return can_answer=true if the context actually contains the answer."""
+
+            user_prompt = f"""Context:
+{context[:3000]}  
+
+Question: {question}
+
+Analyze and respond with JSON only."""
+
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            return {
+                "can_answer": result.get("can_answer", False),
+                "confidence": result.get("confidence", 0.0),
+                "subject": result.get("subject", "Unknown")
+            }
+        except Exception as e:
+            print(f"Error checking answer in context: {str(e)}")
+            return {"can_answer": True, "confidence": 0.5, "subject": "Unknown"}
+    
+    async def search_external_knowledge(
+        self,
+        question: str,
+        subject: str,
+        context_summary: str = None
+    ) -> Dict[str, Any]:
+        """
+        Search for answer using external knowledge with subject validation
+        
+        Args:
+            question: User's question
+            subject: Subject matter from context
+            context_summary: Optional summary of context for relevance checking
+            
+        Returns:
+            Dictionary with answer, references, and is_relevant flag
+        """
+        try:
+            system_prompt = f"""You are an expert tutor helping a student learn about {subject}.
+The student has asked a question that isn't covered in their study material.
+
+Provide a clear, educational answer that:
+1. Stays relevant to the subject matter ({subject})
+2. Is appropriate for a student learning this topic
+3. Includes specific references or sources where applicable
+
+If the question is completely unrelated to {subject}, politely explain that it's outside the scope of their current study material.
+
+Format your response as JSON with:
+- answer: your educational response
+- is_relevant: true if question relates to {subject}, false otherwise
+- references: array of objects with 'source' and 'relevance' fields (e.g., general knowledge, scientific principles, historical facts)"""
+
+            context_info = f"\n\nContext summary: {context_summary}" if context_summary else ""
+            
+            user_prompt = f"""Subject: {subject}{context_info}
+
+Question: {question}
+
+Provide an educational answer with references."""
+
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            return {
+                "answer": result.get("answer", "I couldn't find relevant information."),
+                "references": result.get("references", []),
+                "is_relevant": result.get("is_relevant", False)
+            }
+        except Exception as e:
+            print(f"Error in external knowledge search: {str(e)}")
+            return {
+                "answer": "I encountered an error searching for information.",
+                "references": [],
+                "is_relevant": False
+            }
+    
+    async def smart_chat_tutor(
+        self,
+        messages: List[Dict[str, str]],
+        context: str,
+        allow_external: bool,
+        subject_hint: str = None
+    ) -> Dict[str, Any]:
+        """
+        Intelligent chat that checks context first, asks permission if needed
+        
+        Args:
+            messages: Chat history
+            context: Study material context
+            allow_external: Whether user has granted permission for external search
+            subject_hint: Optional subject matter hint
+            
+        Returns:
+            Dictionary with response, needs_permission, used_external, references, subject
+        """
+        try:
+            # Get the latest user question
+            user_question = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+            
+            if not user_question:
+                return {
+                    "response": "I didn't receive a question. How can I help you?",
+                    "needs_permission": False,
+                    "used_external": False,
+                    "references": None,
+                    "subject": None
+                }
+            
+            # Check if answer is in context
+            context_check = await self.check_answer_in_context(user_question, context)
+            subject = subject_hint or context_check.get("subject", "Unknown")
+            
+            # If answer is in context, use normal chat
+            if context_check.get("can_answer", False) and context_check.get("confidence", 0) > 0.6:
+                response_text = await self.chat_tutor(messages, context)
+                return {
+                    "response": response_text,
+                    "needs_permission": False,
+                    "used_external": False,
+                    "references": None,
+                    "subject": subject
+                }
+            
+            # Answer not in context
+            if not allow_external:
+                # Ask for permission
+                return {
+                    "response": f"I cannot find the answer to this question in your study material about {subject}. Would you like me to search for information from external sources? This will provide educational content with references.",
+                    "needs_permission": True,
+                    "used_external": False,
+                    "references": None,
+                    "subject": subject
+                }
+            
+            # Permission granted - search externally
+            external_result = await self.search_external_knowledge(
+                user_question,
+                subject,
+                context[:500] if context else None
+            )
+            
+            if not external_result.get("is_relevant", False):
+                return {
+                    "response": f"This question appears to be outside the scope of your current study material about {subject}. I recommend focusing on questions related to your course content.",
+                    "needs_permission": False,
+                    "used_external": False,
+                    "references": None,
+                    "subject": subject
+                }
+            
+            # Format response with references
+            answer = external_result.get("answer", "")
+            references = external_result.get("references", [])
+            
+            return {
+                "response": answer,
+                "needs_permission": False,
+                "used_external": True,
+                "references": references,
+                "subject": subject
+            }
+            
+        except Exception as e:
+            print(f"Error in smart chat tutor: {str(e)}")
+            return {
+                "response": "I encountered an error processing your question. Please try again.",
+                "needs_permission": False,
+                "used_external": False,
+                "references": None,
+                "subject": None
+            }
     
     async def process_image(self, image_url: str, prompt: str = None) -> str:
         """

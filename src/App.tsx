@@ -193,15 +193,18 @@ const AppContent: React.FC = () => {
   };
 
   const handleLogin = async () => {
+    console.log('🔵 LOGIN BUTTON CLICKED!');
     try {
-      // Fetch the auth URL from backend
+      console.log('🔵 Fetching auth URL...');
       const response = await fetch('http://localhost:8000/auth/google');
+      console.log('🔵 Response:', response);
       const data = await response.json();
-
-      // Redirect to Google OAuth
+      console.log('🔵 Data:', data);
+      
+      console.log('🔵 Redirecting to:', data.auth_url);
       window.location.href = data.auth_url;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       alert('Failed to initiate login. Please try again.');
     }
   };

@@ -7,6 +7,7 @@ from app.utils.dependencies import get_current_user
 from app.services.openai_service import openai_service
 from pydantic import BaseModel
 from typing import List, Optional
+from app.schemas.tutor import SmartChatRequest, SmartChatResponse
 import os
 from google.oauth2.credentials import Credentials
 from app.services.google_drive import GoogleDriveService
@@ -102,12 +103,21 @@ async def chat_tutor(
                 context_content = material.summary
     
     # Format messages for OpenAI
-    formatted_messages = [{"role": m.role, "content": m.text} for m in request.messages]
+    formatted_messages = []
+    for m in request.messages:
+        role = "assistant" if m.role == "model" else m.role
+        formatted_messages.append({"role": role, "content": m.text})
     
     # Call OpenAI service
-    response_text = await openai_service.chat_tutor(formatted_messages, context=context_content)
-    
-    return ChatResponse(response=response_text)
+    try:
+        response_text = await openai_service.chat_tutor(formatted_messages, context=context_content)
+        return ChatResponse(response=response_text)
+    except Exception as e:
+        print(f"Error in chat endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat service error: {str(e)}"
+        )
 
 
 class EvaluationRequest(BaseModel):
@@ -140,3 +150,95 @@ async def evaluate_answer(
         score=result.get("score", 0),
         feedback=result.get("feedback", "No feedback provided.")
     )
+@router.post("/smart-chat", response_model=SmartChatResponse)
+async def smart_chat_tutor_endpoint(
+    request: SmartChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Smart AI Tutor with context extension capability
+    Asks permission before using external knowledge
+    """
+    context_content = request.context
+    subject_hint = request.subject_hint
+    
+    # If material_id is provided, fetch content from Drive (same logic as /chat endpoint)
+    if request.material_id:
+        material = db.query(Material).filter(
+            Material.id == request.material_id,
+            Material.user_id == current_user.id
+        ).first()
+        
+        if material and material.drive_file_id and current_user.google_access_token:
+            try:
+                # Setup Drive service
+                creds = Credentials(
+                    token=current_user.google_access_token,
+                    refresh_token=current_user.google_refresh_token,
+                    token_uri="https://oauth2.googleapis.com/token",
+                    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+                    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+                    scopes=['https://www.googleapis.com/auth/drive.file']
+                )
+                drive_service = GoogleDriveService(creds)
+                
+                # Ensure folder structure exists
+                folder_valid = False
+                if current_user.drive_folder_id:
+                    folder_valid = drive_service.validate_folder(current_user.drive_folder_id)
+                    
+                if not folder_valid:
+                    print("⚠️ Main SESAI folder missing or invalid. Recreating structure...")
+                    folders = drive_service.setup_sesai_folder_structure()
+                    current_user.drive_folder_id = folders['sesai']
+                    db.commit()
+                
+                # Download file
+                file_content = drive_service.download_file(material.drive_file_id)
+                
+                # Save to temp file for processing
+                suffix = ".pdf" if material.file_type == "pdf" else ".txt"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                    temp_file.write(file_content)
+                    temp_path = temp_file.name
+                
+                # Extract text
+                extracted_text = ""
+                if material.file_type == 'pdf':
+                    extracted_text = extract_pdf_text(temp_path)
+                else:
+                    with open(temp_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        extracted_text = f.read()
+                
+                # Clean up
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                    
+                if extracted_text.strip():
+                    context_content = f"Title: {material.filename}\n\nContent:\n{extracted_text}"
+                    # Extract subject from filename if not provided
+                    if not subject_hint:
+                        subject_hint = material.filename.replace('.pdf', '').replace('.txt', '').replace('_', ' ')
+                else:
+                    context_content = material.summary or "Content could not be extracted."
+                    
+            except Exception as e:
+                print(f"❌ Failed to fetch from Drive for smart chat: {str(e)}")
+                context_content = material.summary
+    
+    # Format messages for OpenAI
+    formatted_messages = []
+    for m in request.messages:
+        role = "assistant" if m.role == "model" else m.role
+        formatted_messages.append({"role": role, "content": m.text})
+    
+    # Call smart chat service
+    result = await openai_service.smart_chat_tutor(
+        messages=formatted_messages,
+        context=context_content or "",
+        allow_external=request.allow_external,
+        subject_hint=subject_hint
+    )
+    
+    return SmartChatResponse(**result)

@@ -215,7 +215,17 @@ export const tutorAPI = {
     const response = await api.post('/api/tutor/evaluate', params);
     return response.data;
   },
-  
+
+  smartChat: async (params: {
+    messages: { role: string; text: string }[];
+    material_id?: string;
+    context?: string;
+    allow_external?: boolean;
+    subject_hint?: string;
+  }) => {
+    const response = await api.post('/api/tutor/smart-chat', params);
+    return response.data;
+  },
 };
 
 // ==================== ANALYTICS API ====================

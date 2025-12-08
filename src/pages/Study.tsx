@@ -1,10 +1,9 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { AppContext } from '../App';
-import { MessageSquare, Book, ChevronRight, Send, User, Bot, Sparkles } from 'lucide-react';
+import { MessageSquare, Book, ChevronRight, Send, User, Bot, Sparkles, Globe, AlertCircle } from 'lucide-react';
 import { ChatMessage } from '../types';
-import { askTutor } from '../services/geminiService';
+import { tutorAPI } from '../services/api';
 import { v4 as uuidv4 } from "uuid";
-
 
 const Study: React.FC = () => {
   const { materials, activeMaterialId, setActiveMaterialId } = useContext(AppContext);
@@ -16,6 +15,7 @@ const Study: React.FC = () => {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Sync internal state with global active ID if it changes
@@ -49,19 +49,36 @@ const Study: React.FC = () => {
     setInput('');
     setIsTyping(true);
 
-    const history = messages.map(m => ({ role: m.role, text: m.text }));
-    // Pass selectedMaterialId instead of context string
-    const responseText = await askTutor(history, userMsg.text, selectedMaterialId || undefined);
+    try {
+      const history = [...messages, userMsg].map(m => ({ role: m.role, text: m.text }));
 
-    const botMsg: ChatMessage = {
-      id: uuidv4(),
-      role: 'model',
-      text: responseText,
-      timestamp: Date.now()
-    };
+      // Use standard Chat API
+      const responseList = await tutorAPI.chat({
+        messages: history,
+        material_id: selectedMaterialId || undefined
+      });
 
-    setMessages(prev => [...prev, botMsg]);
-    setIsTyping(false);
+      // The API returns { response: string }
+      const responseText = responseList.response;
+
+      const botMsg: ChatMessage = {
+        id: uuidv4(),
+        role: 'model',
+        text: responseText,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, botMsg]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      setMessages(prev => [...prev, {
+        id: uuidv4(),
+        role: 'model',
+        text: "Sorry, I encountered an error. Please try again.",
+        timestamp: Date.now()
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   if (materials.length === 0) {
@@ -77,7 +94,7 @@ const Study: React.FC = () => {
   const handleSelectMaterial = (id: string) => {
     setSelectedMaterialId(id);
     setActiveMaterialId(id); // Update global state too
-    setMessages([{ id: uuidv4(), role: 'model', text: 'Context updated. Ask away!', timestamp: Date.now() }]);
+    setMessages([{ id: uuidv4(), role: 'model', text: `Context updated to: ${materials.find(m => m.id === id)?.title}. Ask away!`, timestamp: Date.now() }]);
   };
 
   return (
@@ -184,7 +201,7 @@ const Study: React.FC = () => {
               className="flex-1 bg-gray-100 border-0 rounded-full px-5 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={isTyping || !input.trim()}
               className="absolute right-2 top-1.5 p-1.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
