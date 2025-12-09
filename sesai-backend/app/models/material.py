@@ -16,6 +16,7 @@ class Material(Base):
     filename = Column(String(500))
     file_type = Column(String(50))  # pdf, image, text, audio
     summary = Column(Text)
+    content_file_id = Column(String(255))  # ID of JSON file in Drive containing extracted content
     drive_link = Column(Text)  # Web view link to file in Drive
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

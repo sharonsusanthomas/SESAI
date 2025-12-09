@@ -11,6 +11,7 @@ from app.services.openai_service import openai_service
 from app.services.file_processor import extract_pdf_text, get_file_type
 import os
 import tempfile
+from app.schemas.material import MaterialResponse, MaterialListResponse, MaterialDetailResponse
 
 router = APIRouter()
 
@@ -36,14 +37,22 @@ async def upload_material(
         # Determine file type
         file_type = get_file_type(file.filename)
         
-        # Extract content for AI processing
+        # Extract content page-by-page for JSON storage
+        pages_data = []
+        full_text_content = ""
+        
         if file_type == 'pdf':
-            text_content = extract_pdf_text(temp_path)
-        elif file_type == 'text':
-            with open(temp_path, 'r', encoding='utf-8') as f:
-                text_content = f.read()
+            from PyPDF2 import PdfReader
+            reader = PdfReader(temp_path)
+            for i, page in enumerate(reader.pages):
+                txt = page.extract_text() or ""
+                pages_data.append({"page": i + 1, "text": txt})
+                full_text_content += txt + "\n"
         else:
-            text_content = ""
+            # Text based
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                full_text_content = f.read()
+            pages_data.append({"page": 1, "text": full_text_content})
             
         # Upload to Google Drive (Synchronous)
         if not current_user.google_access_token:
@@ -63,20 +72,19 @@ async def upload_material(
         
         drive_service = GoogleDriveService(creds)
         
-        # Ensure upload folder exists and is valid
+        # Ensure folders
         folder_valid = False
         if current_user.drive_folder_id:
             folder_valid = drive_service.validate_folder(current_user.drive_folder_id)
-            
         if not folder_valid:
-            print("⚠️ Main SESAI folder missing or invalid. Recreating structure...")
             folders = drive_service.setup_sesai_folder_structure()
             current_user.drive_folder_id = folders['sesai']
             db.commit()
-            
+
         uploads_folder_id = drive_service.get_or_create_folder("uploads", current_user.drive_folder_id)
+        data_folder_id = drive_service.get_or_create_folder("sesai_data", current_user.drive_folder_id)
         
-        # Upload file
+        # Upload Original File
         print(f"📤 Uploading {file.filename} to Drive...")
         drive_file = drive_service.upload_file(
             file_path=temp_path,
@@ -84,11 +92,28 @@ async def upload_material(
             parent_id=uploads_folder_id,
             mime_type=file.content_type
         )
-        print(f"✅ Upload complete. File ID: {drive_file['id']}")
+        
+        # Upload Extracted Content as JSON
+        import json
+        json_filename = f"{os.path.splitext(file.filename)[0]}_content.json"
+        
+        # Save JSON temporarily
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".json", encoding='utf-8') as json_temp:
+            json.dump(pages_data, json_temp)
+            json_path = json_temp.name
+            
+        print(f"📤 Uploading content JSON to Drive...")
+        content_file = drive_service.upload_file(
+            file_path=json_path,
+            filename=json_filename,
+            parent_id=data_folder_id,
+            mime_type="application/json"
+        )
+        os.unlink(json_path) # Clean up JSON temp
 
-        # Generate summary with OpenAI
-        if text_content:
-            summary = await openai_service.generate_summary(text_content, file_type)
+        # Generate summary
+        if full_text_content:
+            summary = await openai_service.generate_summary(full_text_content[:15000], file_type)
         else:
             summary = "File uploaded successfully"
             
@@ -99,6 +124,7 @@ async def upload_material(
             filename=file.filename,
             file_type=file_type,
             summary=summary,
+            content_file_id=content_file['id'],  # Save JSON file ID
             drive_link=drive_file.get('webViewLink')
         )
         
@@ -106,7 +132,18 @@ async def upload_material(
         db.commit()
         db.refresh(material)
         
-        return MaterialResponse.from_orm(material)
+        return MaterialDetailResponse(
+            id=material.id,
+            user_id=material.user_id,
+            drive_file_id=material.drive_file_id,
+            filename=material.filename,
+            file_type=material.file_type,
+            summary=material.summary,
+            drive_link=material.drive_link,
+            created_at=material.created_at,
+            updated_at=material.updated_at,
+            content=full_text_content # Return content eagerly for UI
+        )
         
     except Exception as e:
         print(f"❌ Upload failed: {str(e)}")
@@ -142,7 +179,7 @@ async def list_materials(
     )
 
 
-@router.get("/{material_id}", response_model=MaterialResponse)
+@router.get("/{material_id}", response_model=MaterialDetailResponse)
 async def get_material(
     material_id: str,
     current_user: User = Depends(get_current_user),
@@ -170,7 +207,36 @@ async def get_material(
             detail="Material not found"
         )
     
-    return MaterialResponse.from_orm(material)
+    material_detail = MaterialDetailResponse.from_orm(material)
+    
+    # Try to fetch content from Drive JSON if available
+    if material.content_file_id and current_user.google_access_token:
+        try:
+            creds = Credentials(
+                token=current_user.google_access_token,
+                refresh_token=current_user.google_refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=os.getenv("GOOGLE_CLIENT_ID"),
+                client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+                scopes=['https://www.googleapis.com/auth/drive.file']
+            )
+            drive_service = GoogleDriveService(creds)
+            
+            # Download JSON content
+            import json
+            content_bytes = drive_service.download_file(material.content_file_id)
+            pages_data = json.loads(content_bytes.decode('utf-8'))
+            
+            # Reconstruct full text
+            full_text = "\n".join([p['text'] for p in pages_data])
+            material_detail.content = full_text
+            
+        except Exception as e:
+            print(f"⚠️ Failed to fetch content for material {material_id}: {e}")
+            # Don't fail the request, just return without content
+            pass
+            
+    return material_detail
 
 
 @router.delete("/{material_id}")
@@ -245,7 +311,21 @@ async def get_material_content(
         )
         drive_service = GoogleDriveService(creds)
         
-        # Download file
+        # Check if we have extracted content JSON
+        if material.content_file_id:
+            try:
+                # Download JSON content
+                import json
+                content_bytes = drive_service.download_file(material.content_file_id)
+                pages_data = json.loads(content_bytes.decode('utf-8'))
+                
+                # Reconstruct full text
+                content = "\n".join([p['text'] for p in pages_data])
+                return {"content": content}
+            except Exception as e:
+                 print(f"⚠️ Failed to fetch content JSON, falling back to raw file: {e}")
+
+        # Fallback to original file download (Slow)
         file_content = drive_service.download_file(material.drive_file_id)
         
         # Extract text based on type

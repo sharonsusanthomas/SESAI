@@ -30,6 +30,11 @@ class MaterialResponse(MaterialBase):
         from_attributes = True
 
 
+class MaterialDetailResponse(MaterialResponse):
+    """Schema for detailed material response including content"""
+    content: Optional[str] = None
+
+
 class MaterialListResponse(BaseModel):
     """Schema for list of materials"""
     materials: list[MaterialResponse]

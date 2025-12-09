@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../App';
-import { generateQuiz, generateAdvancedQuestions, evaluateAnswer } from '../services/geminiService';
+import { generateQuiz, generateAdvancedQuestions, evaluateAnswer } from '../services/aiService';
 import { quizAPI } from '../services/api';
 import { Question, QuizLevel, QuizResult, QuestionType } from '../types';
 import { GraduationCap, CheckCircle, XCircle, AlertCircle, Loader2, ArrowRight, BrainCircuit, Eye, Zap } from 'lucide-react';

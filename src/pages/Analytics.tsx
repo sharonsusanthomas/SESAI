@@ -1,4 +1,5 @@
 import React, { useContext, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
 import {
   AreaChart, Area, BarChart, Bar,
@@ -9,6 +10,7 @@ import { QuizLevel } from '../types';
 
 const Analytics: React.FC = () => {
   const { quizHistory, materials } = useContext(AppContext);
+  const navigate = useNavigate();
   const [showRecommendations, setShowRecommendations] = useState(false);
 
   // --- Data Derivation Logic ---
@@ -103,9 +105,6 @@ const Analytics: React.FC = () => {
             <Zap size={18} className="group-hover:text-yellow-300 transition-colors" />
             View Insights
           </button>
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 shadow-sm">
-            <Calendar size={16} className="text-gray-400" /> Last 30 Days
-          </div>
         </div>
       </header>
 
@@ -146,11 +145,11 @@ const Analytics: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Main Chart: Score History */}
-        <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 hover:shadow-2xl hover:shadow-gray-200/50 transition-shadow duration-300">
+        <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/20 shadow-xl shadow-indigo-100/50 hover:shadow-2xl hover:shadow-indigo-200/50 transition-all duration-500 group">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h3 className="font-bold text-gray-900 text-xl flex items-center gap-2">
-                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600"><Activity size={20} /></div>
+                <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300"><Activity size={20} /></div>
                 Score Trajectory
               </h3>
             </div>
@@ -160,7 +159,7 @@ const Analytics: React.FC = () => {
               <AreaChart data={performanceData}>
                 <defs>
                   <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
                     <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -180,11 +179,13 @@ const Analytics: React.FC = () => {
                 />
                 <Tooltip
                   contentStyle={{
-                    borderRadius: '12px',
+                    borderRadius: '16px',
                     border: 'none',
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                    padding: '12px',
-                    fontWeight: 600
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                    padding: '16px',
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    backdropFilter: 'blur(4px)'
                   }}
                   cursor={{ stroke: '#6366f1', strokeWidth: 2, strokeDasharray: '4 4' }}
                 />
@@ -202,9 +203,9 @@ const Analytics: React.FC = () => {
         </div>
 
         {/* Secondary Chart: Difficulty Breakdown */}
-        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 hover:shadow-2xl hover:shadow-gray-200/50 transition-shadow duration-300">
+        <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/20 shadow-xl shadow-orange-100/50 hover:shadow-2xl hover:shadow-orange-200/50 transition-all duration-500 group">
           <h3 className="font-bold text-gray-900 text-xl mb-8 flex items-center gap-2">
-            <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Filter size={20} /></div>
+            <div className="p-2 bg-orange-50 rounded-xl text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-all duration-300"><Filter size={20} /></div>
             Mastery by Level
           </h3>
           <div className="h-80">
@@ -221,10 +222,10 @@ const Analytics: React.FC = () => {
                   tick={{ fill: '#4b5563', fontSize: 13, fontWeight: 600 }}
                 />
                 <Tooltip
-                  cursor={{ fill: '#f9fafb' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  cursor={{ fill: 'transparent' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="score" radius={[0, 8, 8, 0]} barSize={40} animationDuration={1500}>
+                <Bar dataKey="score" radius={[0, 100, 100, 0]} barSize={32} animationDuration={1500}>
                   {difficultyData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : index === 1 ? '#f59e0b' : '#ef4444'} />
                   ))}
@@ -239,7 +240,10 @@ const Analytics: React.FC = () => {
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
           <h3 className="font-bold text-gray-900 text-lg">Recent Assessments</h3>
-          <button className="text-sm text-indigo-600 font-bold hover:text-indigo-700 flex items-center gap-1 transition-colors">
+          <button
+            onClick={() => navigate('/evaluation')}
+            className="text-sm text-indigo-600 font-bold hover:text-indigo-700 flex items-center gap-1 transition-colors"
+          >
             View All <ChevronRight size={16} />
           </button>
         </div>
@@ -354,20 +358,23 @@ const Analytics: React.FC = () => {
 
 // Beautified KPI Card Component
 const KpiCard = ({ title, value, icon, trend, color, gradient }: any) => (
-  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-40 group">
-    <div className="flex justify-between items-start">
-      <div className={`p-3.5 rounded-2xl bg-gradient-to-br ${gradient} shadow-lg shadow-${color}-200 group-hover:scale-110 transition-transform duration-300`}>
+  <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-white/20 shadow-xl shadow-gray-200/50 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-40 group relative overflow-hidden">
+    <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full bg-${color}-500/5 blur-3xl group-hover:bg-${color}-500/10 transition-colors duration-500`}></div>
+
+    <div className="flex justify-between items-start relative z-10">
+      <div className={`p-4 rounded-2xl bg-gradient-to-br ${gradient} shadow-lg shadow-${color}-200 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
         {icon}
       </div>
       {trend !== undefined && trend !== 0 && (
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${trend > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+        <span className={`text-xs font-bold px-3 py-1.5 rounded-full border backdrop-blur-sm ${trend > 0 ? 'bg-emerald-50/80 text-emerald-700 border-emerald-100' : 'bg-red-50/80 text-red-700 border-red-100'}`}>
           {trend > 0 ? '+' : ''}{trend}%
         </span>
       )}
     </div>
-    <div>
-      <h3 className="text-3xl font-black text-gray-900 tracking-tight">{value}</h3>
-      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{title}</p>
+
+    <div className="relative z-10">
+      <h3 className="text-4xl font-black text-gray-900 tracking-tight">{value}</h3>
+      <p className="text-xs font-extrabold text-gray-400 uppercase tracking-widest mt-1">{title}</p>
     </div>
   </div>
 );

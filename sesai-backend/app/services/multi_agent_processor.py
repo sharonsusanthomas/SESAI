@@ -21,23 +21,30 @@ class MultiAgentProcessor:
     
     async def process_document_parallel(
         self, 
-        file_path: str,
-        file_type: str = "pdf"
+        file_path: str = None,
+        file_type: str = "pdf",
+        json_content: List[dict] = None
     ) -> dict:
         """
         Process a document using multiple AI agents in parallel
         
         Args:
-            file_path: Path to the document file
+            file_path: Path to the document file (optional if json_content provided)
             file_type: Type of file (pdf, text, etc.)
+            json_content: Pre-extracted page content [{"page": 1, "text": "..."}]
             
         Returns:
             Merged notes from all agents
         """
-        print(f"\n🚀 Starting multi-agent processing for {file_path}")
+        print(f"\n🚀 Starting multi-agent processing...")
         
         # Step 1: Chunk the document
-        chunks = self.chunker.chunk_pdf(file_path)
+        if json_content:
+            chunks = self.chunker.chunk_json_content(json_content)
+        elif file_path:
+            chunks = self.chunker.chunk_pdf(file_path)
+        else:
+            raise ValueError("Either file_path or json_content must be provided")
         
         if len(chunks) == 0:
             raise ValueError("No chunks created from document")
@@ -93,7 +100,9 @@ class MultiAgentProcessor:
             context = f"This is section {agent_id} (pages {chunk.start_page}-{chunk.end_page}) of a larger document. Generate comprehensive notes for this section."
             
             # Call OpenAI to generate notes for this chunk
-            notes = await openai_service.generate_smart_notes(chunk.content)
+            # Prepend context to content so AI knows it's a section
+            full_content = f"CONTEXT: {context}\n\nCONTENT:\n{chunk.content}"
+            notes = await openai_service.generate_smart_notes(full_content)
             
             print(f"✅ Agent {agent_id} completed: Pages {chunk.start_page}-{chunk.end_page}")
             

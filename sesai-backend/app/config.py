@@ -43,7 +43,13 @@ class Settings(BaseSettings):
     @property
     def CORS_ORIGINS_LIST(self) -> List[str]:
         """Parse CORS origins from comma-separated string"""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        # Ensure 127.0.0.1 is also trusted for local dev
+        extra_origins = ["http://127.0.0.1:5173", "http://127.0.0.1:3000"]
+        for origin in extra_origins:
+            if origin not in origins:
+                origins.append(origin)
+        return origins
     
     class Config:
         env_file = ".env"

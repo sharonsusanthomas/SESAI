@@ -25,6 +25,48 @@ class DocumentChunker:
         """
         self.pages_per_chunk = pages_per_chunk
     
+    def chunk_json_content(self, pages_data: List[dict]) -> List[ChunkInfo]:
+        """
+        Chunk pre-extracted JSON content
+        
+        Args:
+            pages_data: List of dicts checks {"page": int, "text": str}
+            
+        Returns:
+            List of ChunkInfo objects
+        """
+        chunks = []
+        total_pages = len(pages_data)
+        
+        print(f"📄 Processing JSON content with {total_pages} pages")
+        print(f"📊 Creating chunks of {self.pages_per_chunk} pages each")
+        
+        overlap = 2
+        step = self.pages_per_chunk - overlap
+        if step < 1: step = 1
+        
+        for i in range(0, total_pages, step):
+            start = i
+            end = min(i + self.pages_per_chunk, total_pages)
+            
+            # Combine text for this chunk
+            chunk_text = ""
+            for p in pages_data[start:end]:
+                if p.get('text'):
+                    chunk_text += f"--- Page {p['page']} ---\n{p['text']}\n\n"
+                    
+            chunk = ChunkInfo(
+                chunk_id=len(chunks),
+                start_page=start + 1,
+                end_page=end,
+                content=chunk_text,
+                page_count=end - start
+            )
+            chunks.append(chunk)
+
+        print(f"✅ Created {len(chunks)} chunks from JSON")
+        return chunks
+
     def chunk_pdf(self, file_path: str) -> List[ChunkInfo]:
         """
         Split PDF into chunks of specified page size
@@ -43,7 +85,14 @@ class DocumentChunker:
             print(f"📄 Processing PDF with {total_pages} pages")
             print(f"📊 Creating chunks of {self.pages_per_chunk} pages each")
             
-            for i in range(0, total_pages, self.pages_per_chunk):
+            # Pages to overlap between chunks to preserve context
+            overlap = 2
+            step = self.pages_per_chunk - overlap
+            
+            # Ensure proper stepping avoids infinite loop if pages_per_chunk <= overlap
+            if step < 1: step = 1
+
+            for i in range(0, total_pages, step):
                 start = i
                 end = min(i + self.pages_per_chunk, total_pages)
                 
@@ -114,20 +163,20 @@ class DocumentChunker:
         summaries = []
         for i, notes in enumerate(chunk_notes):
             if notes.get("summary"):
-                summaries.append(f"[Section {i + 1}] {notes['summary']}")
+                summaries.append(notes['summary'])
         
-        merged["summary"] = " ".join(summaries)
+        merged["summary"] = "\n\n".join(summaries)
         
         # Merge all other fields
         for i, notes in enumerate(chunk_notes):
-            # Add bullet points with section markers
+            # Add bullet points (no prefixes)
             for point in notes.get("bulletPoints", []):
-                merged["bulletPoints"].append(f"[Sec {i + 1}] {point}")
+                merged["bulletPoints"].append(point)
             
             # Add detailed notes
             for note in notes.get("detailedNotes", []):
                 merged["detailedNotes"].append({
-                    "heading": f"[Section {i + 1}] {note.get('heading', '')}",
+                    "heading": note.get('heading', ''),
                     "content": note.get("content", "")
                 })
             
@@ -141,7 +190,7 @@ class DocumentChunker:
             # Add mind map topics
             for topic in notes.get("mindMap", []):
                 merged["mindMap"].append({
-                    "topic": f"[Sec {i + 1}] {topic.get('topic', '')}",
+                    "topic": topic.get('topic', ''),
                     "subtopics": topic.get("subtopics", [])
                 })
         

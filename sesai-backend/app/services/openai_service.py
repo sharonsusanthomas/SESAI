@@ -59,19 +59,27 @@ class OpenAIService:
         messages = [
             {
                 "role": "system",
-                "content": """You are an expert educational AI. Analyze the study material and create comprehensive structured notes.
+                "content": """You are an expert academic research assistant and professor.
+                Analyze the provided study material (which may be complex and technical) and create highly detailed, comprehensive structured notes.
+                
+                Your goal is to create a resource that a student could use to study for an advanced university exam without needing the original text.
+                
+                Rules:
+                1. Avoid generic summaries. Capture specific technical details, algorithms, formulas, dates, and figures.
+                2. If the text involves code or math, include it.
+                3. Structure the 'detailedNotes' logically by topic, not just by page.
                 
                 Return a JSON object with:
-                - summary: Executive summary (100-150 words)
-                - bulletPoints: Array of 5-10 key takeaways
-                - detailedNotes: Array of {heading, content} objects for main sections
-                - definitions: Array of {term, definition} objects
-                - mindMap: Array of {topic, subtopics[]} for conceptual hierarchy
+                - summary: Executive summary (150-200 words) capturing the core thesis and technical scope.
+                - bulletPoints: Array of 8-15 key takeaways, prioritizing high-value technical insights.
+                - detailedNotes: Array of {heading, content} objects. 'content' should be a detailed paragraph (100+ words) with specific facts.
+                - definitions: Array of {term, definition} objects for all technical jargon.
+                - mindMap: Array of {topic, subtopics[]} showing the conceptual hierarchy.
                 """
             },
             {
                 "role": "user",
-                "content": f"Create structured notes for:\n\n{content[:100000]}"
+                "content": f"Create university-level structured notes for:\n\n{content[:100000]}"
             }
         ]
         
@@ -79,7 +87,7 @@ class OpenAIService:
             model=self.model,
             messages=messages,
             response_format={"type": "json_object"},
-            temperature=0.5,
+            temperature=0.3, # Lower temperature for more factual/deterministic output
             max_tokens=4000
         )
         
@@ -117,8 +125,8 @@ class OpenAIService:
                 - text: question text
                 - options: array of 4 options (for MCQ)
                 - correctAnswerIndex: number (for MCQ)
-                - modelAnswer: detailed answer (for open-ended)
-                - explanation: why the answer is correct
+                - modelAnswer: a comprehensive, perfect student response that is directly the answer. Do not use phrases like 'The answer is...'. Just give the answer.
+                - explanation: additional reasoning or context on why this is correct
                 - difficulty: "{difficulty}"
                 """
             },

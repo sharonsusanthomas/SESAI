@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../App';
-import { generateSmartNotes } from '../services/geminiService';
+import { generateSmartNotes } from '../services/aiService';
 import { Loader2, FileText, List, GitGraph, Book, AlignLeft, Layers, Upload } from 'lucide-react';
 
 const SmartNotes: React.FC = () => {
