@@ -1,67 +1,141 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../App';
 import { generateSmartNotes } from '../services/aiService';
-import { Loader2, FileText, List, GitGraph, Book, AlignLeft, Layers, Upload } from 'lucide-react';
+import { Loader2, FileText, List, GitGraph, Book, AlignLeft, Layers, Upload, Download } from 'lucide-react';
+import { useBackgroundTask } from '../hooks/useBackgroundTask';
+import { ProgressNotification } from '../components/ProgressNotification';
+import jsPDF from 'jspdf';
 
 const SmartNotes: React.FC = () => {
-    const { materials, updateMaterialNotes, activeMaterialId } = useContext(AppContext);
+    const { materials, updateMaterialNotes, activeMaterialId, setActiveMaterialId } = useContext(AppContext);
     const [selectedMaterialId, setSelectedMaterialId] = useState<string>(activeMaterialId || materials[0]?.id || '');
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'summary' | 'keyPoints' | 'mindmap' | 'definitions' | 'detailed'>('summary');
 
     const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
 
-    // Update selected ID if activeMaterialId changes (e.g. from Dashboard)
+    // Update selected ID if activeMaterialId changes (e.g. from another page)
     useEffect(() => {
-        if (activeMaterialId) {
+        if (activeMaterialId && activeMaterialId !== selectedMaterialId) {
             setSelectedMaterialId(activeMaterialId);
         }
     }, [activeMaterialId]);
 
+    // Sync local selection to global context
+    const handleMaterialChange = (id: string) => {
+        setSelectedMaterialId(id);
+        setActiveMaterialId(id);
+    };
+
+    // Background task for notes generation
+    const notesTask = useBackgroundTask('Smart Notes Generation', {
+        onComplete: (notes) => {
+            if (selectedMaterial) {
+                updateMaterialNotes(selectedMaterial.id, notes);
+            }
+        },
+        onError: (error) => {
+            console.error(error);
+            alert("Failed to generate smart notes. " + error.message);
+        }
+    });
+
     const handleGenerate = async () => {
         if (!selectedMaterial) return;
-        setLoading(true);
-        try {
-            // This now calls OpenAI with the full structured schema
+
+        notesTask.startTask(async (signal) => {
+            // Simulate progress updates
+            notesTask.updateProgress(10);
+
             const notes = await generateSmartNotes(selectedMaterial.id);
-            updateMaterialNotes(selectedMaterial.id, notes);
-        } catch (e) {
-            console.error(e);
-            alert("Failed to generate smart notes. Ensure your content isn't too large for a single pass.");
-        } finally {
-            setLoading(false);
-        }
+
+            notesTask.updateProgress(90);
+            return notes;
+        });
     };
 
     const handleDownload = () => {
         const notes = selectedMaterial?.smartNotes;
         if (!notes || !selectedMaterial) return;
 
-        const content = `
-# ${selectedMaterial.title} - Smart Notes
+        try {
+            const pdf = new jsPDF();
+            let yPosition = 20;
+            const pageHeight = pdf.internal.pageSize.height;
+            const margin = 20;
+            const maxWidth = 170;
 
-## Executive Summary
-${notes.summary}
+            // Helper function to add text with page breaks
+            const addText = (text: string, fontSize: number = 10, isBold: boolean = false) => {
+                pdf.setFontSize(fontSize);
+                if (isBold) {
+                    pdf.setFont('helvetica', 'bold');
+                } else {
+                    pdf.setFont('helvetica', 'normal');
+                }
 
-## Key Takeaways
-${notes.bulletPoints.map(p => `- ${p}`).join('\n')}
+                const lines = pdf.splitTextToSize(text, maxWidth);
+                lines.forEach((line: string) => {
+                    if (yPosition > pageHeight - margin) {
+                        pdf.addPage();
+                        yPosition = 20;
+                    }
+                    pdf.text(line, margin, yPosition);
+                    yPosition += fontSize * 0.5;
+                });
+                yPosition += 5;
+            };
 
-## Definitions
-${notes.definitions.map(d => `**${d.term}**: ${d.definition}`).join('\n')}
+            // Title
+            addText(`${selectedMaterial.title} - Smart Notes`, 18, true);
+            yPosition += 5;
 
-## Detailed Notes
-${notes.detailedNotes.map(s => `### ${s.heading}\n${s.content}`).join('\n\n')}
-    `.trim();
+            // Executive Summary
+            addText('Executive Summary', 14, true);
+            addText(notes.summary, 10);
+            yPosition += 5;
 
-        const blob = new Blob([content], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${selectedMaterial.title.replace(/\s+/g, '_')}_notes.md`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+            // Key Takeaways
+            addText('Key Takeaways', 14, true);
+            notes.bulletPoints.forEach((point, i) => {
+                addText(`• ${point}`, 10);
+            });
+            yPosition += 5;
+
+            // Mind Map
+            if (notes.mindMap && notes.mindMap.length > 0) {
+                addText('Conceptual Hierarchy', 14, true);
+                notes.mindMap.forEach((node) => {
+                    addText(node.topic, 12, true);
+                    node.subtopics.forEach((sub) => {
+                        addText(`  - ${sub}`, 10);
+                    });
+                });
+                yPosition += 5;
+            }
+
+            // Definitions
+            addText('Glossary & Definitions', 14, true);
+            notes.definitions.forEach((def) => {
+                addText(`${def.term}:`, 11, true);
+                addText(def.definition, 10);
+            });
+            yPosition += 5;
+
+            // Detailed Notes
+            addText('Detailed Study Notes', 14, true);
+            notes.detailedNotes.forEach((section) => {
+                addText(section.heading, 12, true);
+                addText(section.content, 10);
+                yPosition += 3;
+            });
+
+            // Save PDF
+            pdf.save(`${selectedMaterial.title.replace(/\s+/g, '_')}_notes.pdf`);
+        } catch (error) {
+            console.error('PDF generation failed:', error);
+            alert('Failed to generate PDF. Please try again.');
+        }
     };
 
     if (materials.length === 0) {
@@ -80,6 +154,15 @@ ${notes.detailedNotes.map(s => `### ${s.heading}\n${s.content}`).join('\n\n')}
 
     return (
         <div className="space-y-6">
+            <ProgressNotification
+                taskName="Generating Smart Notes"
+                progress={notesTask.progress}
+                isRunning={notesTask.isRunning}
+                error={notesTask.error}
+                result={notesTask.result}
+                onDismiss={notesTask.clearTask}
+            />
+
             <header className="flex justify-between items-center bg-white p-6 rounded-xl border shadow-sm">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">Smart Notes Organizer</h2>
@@ -88,7 +171,7 @@ ${notes.detailedNotes.map(s => `### ${s.heading}\n${s.content}`).join('\n\n')}
                 <div className="flex gap-3">
                     <select
                         value={selectedMaterialId}
-                        onChange={(e) => setSelectedMaterialId(e.target.value)}
+                        onChange={(e) => handleMaterialChange(e.target.value)}
                         className="border p-2 rounded-lg bg-gray-50 min-w-[200px]"
                     >
                         {materials.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
@@ -98,7 +181,7 @@ ${notes.detailedNotes.map(s => `### ${s.heading}\n${s.content}`).join('\n\n')}
                             onClick={handleDownload}
                             className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
                         >
-                            <Upload className="rotate-180" size={18} /> Download
+                            <Download size={18} /> Download PDF
                         </button>
                     )}
                 </div>
@@ -111,11 +194,11 @@ ${notes.detailedNotes.map(s => `### ${s.heading}\n${s.content}`).join('\n\n')}
                     <p className="text-gray-500 mb-6">Generate AI-powered structured notes for this document.</p>
                     <button
                         onClick={handleGenerate}
-                        disabled={loading}
+                        disabled={notesTask.isRunning}
                         className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-70 flex items-center gap-2"
                     >
-                        {loading ? <Loader2 className="animate-spin" /> : <FileText size={18} />}
-                        {loading ? 'Analyzing Content...' : 'Generate Smart Notes'}
+                        {notesTask.isRunning ? <Loader2 className="animate-spin" /> : <FileText size={18} />}
+                        {notesTask.isRunning ? 'Analyzing Content...' : 'Generate Smart Notes'}
                     </button>
                 </div>
             ) : (

@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../App';
 import { generateQuiz, generateAdvancedQuestions, evaluateAnswer } from '../services/aiService';
 import { quizAPI } from '../services/api';
@@ -9,17 +9,29 @@ import { v4 as uuidv4 } from "uuid";
 type EvaluationMode = 'standard' | 'self-eval';
 
 const Evaluation: React.FC = () => {
-    const { materials, addQuizResult } = useContext(AppContext);
+    const { materials, addQuizResult, activeMaterialId, setActiveMaterialId } = useContext(AppContext);
 
     // State for Flow
     const [step, setStep] = useState<'config' | 'loading' | 'taking' | 'result'>('config');
 
     // Config State
-    const [selectedMaterialId, setSelectedMaterialId] = useState<string>('');
+    const [selectedMaterialId, setSelectedMaterialId] = useState<string>(activeMaterialId || '');
     const [mode, setMode] = useState<EvaluationMode>('standard');
     const [difficulty, setDifficulty] = useState<QuizLevel>(QuizLevel.MODERATE);
     const [questionCount, setQuestionCount] = useState(5);
     const [questionType, setQuestionType] = useState<QuestionType>('multiple-choice');
+
+    // Sync with global context
+    useEffect(() => {
+        if (activeMaterialId && activeMaterialId !== selectedMaterialId) {
+            setSelectedMaterialId(activeMaterialId);
+        }
+    }, [activeMaterialId]);
+
+    const handleMaterialChange = (id: string) => {
+        setSelectedMaterialId(id);
+        setActiveMaterialId(id);
+    };
 
     // Quiz/Eval State
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -197,7 +209,7 @@ const Evaluation: React.FC = () => {
                         <select
                             className="w-full border-gray-300 rounded-lg p-3 border focus:ring-2 focus:ring-purple-500 outline-none"
                             value={selectedMaterialId}
-                            onChange={(e) => setSelectedMaterialId(e.target.value)}
+                            onChange={(e) => handleMaterialChange(e.target.value)}
                         >
                             <option value="">-- Choose a document --</option>
                             {materials.map(m => (

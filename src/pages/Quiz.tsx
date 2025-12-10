@@ -7,14 +7,26 @@ import { v4 as uuidv4 } from "uuid";
 
 
 const Quiz: React.FC = () => {
-  const { materials, addQuizResult } = useContext(AppContext);
+  const { materials, addQuizResult, activeMaterialId, setActiveMaterialId } = useContext(AppContext);
 
   // State for Flow
   const [step, setStep] = useState<'config' | 'loading' | 'taking' | 'result'>('config');
 
   // Config State
-  const [selectedMaterialId, setSelectedMaterialId] = useState<string>('');
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>(activeMaterialId || '');
   const [difficulty, setDifficulty] = useState<QuizLevel>(QuizLevel.SIMPLE);
+
+  // Sync with global context
+  useEffect(() => {
+    if (activeMaterialId && activeMaterialId !== selectedMaterialId) {
+      setSelectedMaterialId(activeMaterialId);
+    }
+  }, [activeMaterialId]);
+
+  const handleMaterialChange = (id: string) => {
+    setSelectedMaterialId(id);
+    setActiveMaterialId(id);
+  };
 
   // Quiz State
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -92,7 +104,7 @@ const Quiz: React.FC = () => {
             <select
               className="w-full border-gray-300 rounded-lg p-3 border focus:ring-2 focus:ring-blue-500 outline-none"
               value={selectedMaterialId}
-              onChange={(e) => setSelectedMaterialId(e.target.value)}
+              onChange={(e) => handleMaterialChange(e.target.value)}
             >
               <option value="">-- Choose a document --</option>
               {materials.map(m => (

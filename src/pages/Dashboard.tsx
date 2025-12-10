@@ -1,12 +1,16 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FileUpload from '../components/FileUpload';
 import { AppContext } from '../App';
 import { FileText, Image, Clock, ArrowRight, Trash2 } from 'lucide-react';
+import { SkeletonGrid } from '../components/LoadingSkeletons';
+import { NoMaterialsEmptyState } from '../components/EmptyStates';
 
 const Dashboard: React.FC = () => {
   const { materials, addMaterial, removeMaterial, setActiveMaterialId } = useContext(AppContext);
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
 
   const handleStartStudying = (id: string) => {
     setActiveMaterialId(id);
@@ -15,9 +19,14 @@ const Dashboard: React.FC = () => {
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm("Are you sure you want to remove this material?")) {
+    if (confirm("⚠️ Are you sure you want to remove this material?\n\nThis action cannot be undone.")) {
       removeMaterial(id);
     }
+  };
+
+  const handleUploadComplete = (material: any) => {
+    addMaterial(material);
+    setShowUpload(false);
   };
 
   return (
@@ -28,7 +37,7 @@ const Dashboard: React.FC = () => {
       </header>
 
       <section>
-        <FileUpload onUploadComplete={addMaterial} />
+        <FileUpload onUploadComplete={handleUploadComplete} />
       </section>
 
       <section>
@@ -37,25 +46,26 @@ const Dashboard: React.FC = () => {
           <span className="text-xs font-normal bg-gray-200 px-2 py-1 rounded-full">{materials.length} items</span>
         </h3>
 
-        {materials.length === 0 ? (
-          <div className="bg-white p-8 rounded-lg shadow-sm text-center text-gray-500">
-            No materials uploaded yet. Upload a file above to begin learning.
-          </div>
+        {isLoading ? (
+          <SkeletonGrid count={3} type="material" />
+        ) : materials.length === 0 ? (
+          <NoMaterialsEmptyState onUpload={() => setShowUpload(true)} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {materials.map((item) => (
-              <div key={item.id} className="bg-white border rounded-lg p-5 hover:shadow-md transition-shadow flex flex-col h-full relative group">
+              <div key={item.id} className="bg-white border rounded-lg p-5 hover:shadow-md transition-all duration-200 flex flex-col h-full relative group hover:scale-[1.02]">
 
                 <button
                   onClick={(e) => handleDelete(e, item.id)}
-                  className="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition-colors p-1"
+                  className="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100"
                   title="Remove Material"
+                  aria-label="Delete material"
                 >
                   <Trash2 size={16} />
                 </button>
 
                 <div className="flex items-start justify-between mb-3 pr-8">
-                  <div className={`p-2 rounded-lg ${item.type === 'image' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                  <div className={`p-2 rounded-lg transition-colors ${item.type === 'image' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
                     {item.type === 'image' ? <Image size={20} /> : <FileText size={20} />}
                   </div>
                 </div>
@@ -72,7 +82,7 @@ const Dashboard: React.FC = () => {
 
                 <button
                   onClick={() => handleStartStudying(item.id)}
-                  className="w-full mt-auto text-sm text-blue-600 font-medium hover:bg-blue-50 py-2 rounded transition-colors flex items-center justify-center gap-1"
+                  className="w-full mt-auto text-sm text-blue-600 font-medium hover:bg-blue-50 py-2 rounded transition-all flex items-center justify-center gap-1 hover:gap-2"
                 >
                   Start Studying <ArrowRight size={14} />
                 </button>
